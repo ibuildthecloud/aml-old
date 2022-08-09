@@ -1,0 +1,27 @@
+int: 4
+fraction: 4.0
+exponent: 4e10
+string: "h\t\ni"
+bool: true
+fbool: false
+null: null
+"string key": true
+"string": true
+jsonarray_single: ["string"]
+jsonarray_two: ["string", 4]
+jsonarray_empty: [
+  ]
+jsonarray_normal: [
+  "string",
+  4
+]
+jsonarray_trailing_object: [
+  "string",
+  {a: "b"}
+]
+jsonarray_trailing: [
+"string",
+4 ,
+  ]
+
+list_comprehension: [for x in foo { 4 }]

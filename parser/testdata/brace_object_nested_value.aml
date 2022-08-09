@@ -1,0 +1,7 @@
+{
+  key: "string",
+  key: {
+    key: "string2",
+    key: "string2",
+  },
+}

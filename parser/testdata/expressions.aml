@@ -1,0 +1,12 @@
+mul_digit: 1 * 2 *3
+add_digit: 1 + 2
+div_digit: 1 / 2
+sub_digit: 1 - 2
+obj_merge: {} & {}
+name_sel: foo.bar.baz
+name_sel2: foo.bar[3].baz["key"]
+method: ({foo: bar} & {baz: 4}).out(4, 3)
+not: foo *!bar
+for x, y in [1,2] {
+    a: 1
+}

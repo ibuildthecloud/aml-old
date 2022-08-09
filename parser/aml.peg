@@ -1,0 +1,62 @@
+{package parser}
+
+Input <- v:(Object / UnbracedObject) __ EOF { return noop(v) }
+
+Value <- Null / Boolean / Number / Array / Object / String
+
+OpenValue <- Null / Boolean / Number / Array / UnbracedObject / String
+
+Expression <- op:Selector rest:(_ o:Op _ op:Selector)* { return newExpression(op, rest, c) }
+
+Selector <- n:'!'? v:('(' _ Expression _ ')' / Value / Identifier) d:(DotLookup/IndexLookup/CallLookup)* { return newSelector(n, v, d, c) }
+
+CallLookup <- '(' head:(__ a:Expression { return noop(a) })? tail:(__ ',' __ a:Expression { return noop(a) })* __ ')' { return newCallLookup(head, tail, c) }
+
+DotLookup <- '.' v:Identifier { return newDotLookup(v, c) }
+
+IndexLookup <- '[' v:(Number / String) ']' { return newIndexLookup(v, c) }
+
+Op <- [-*+/&] { return toString(c) }
+
+Array <- ArrayComprehension / ItemArray
+
+ArrayComprehension <- '[' __ "for" __ v1:Identifier v2:(__ "," __ Identifier)? __ "in" __ l:Expression __ "{" __ v:OpenValue __ "}" __ ']' {return newArrayComprehension(v1, v2, l, v, c) }
+
+ItemArray <- '[' head:(__ v:Expression __ ',' { return noop(v)})* tail:(__ a:Expression { return noop(a) })? __ ']' { return newElementList(head, tail, c) }
+
+Null <- "null" { return newNull(c) }
+
+Boolean <- ("true" / "false") { return newBool(c) }
+
+UnbracedObject <-  f:(__ o:ObjectField { return noop(o) })* { return newObject(f, c) }
+
+Object <- '{' f:(__ o:ObjectField { return noop(o) })* __ '}' { return newObject(f, c) }
+
+ObjectField <- f:(ForField / Field) { return noop(f) }
+
+ForField <- "for" __ v1:Identifier __ v2:("," __ Identifier)? __ "in" __ l:Expression __ v:Object __ ','? {return newForField(v1, v2, l, v, c) }
+Field <- k:Key ':' _ v:Expression (__ ',')? { return newField(k, v, c) }
+
+Key <- String / Identifier
+
+Identifier <- [a-zA-Z] [-_a-zA-Z0-9]* { return newIdentifier(c) }
+
+String <- '"' Character* '"' { return newQuotedString(c) }
+
+__ <- [ \t\n\r]*
+_ <- [ \t]*
+EOL <- [\n\r]
+EOF <- !.
+
+// This is directly from https://www.crockford.com/mckeeman.html
+Character <- [\u0020\u0021\u0023-\u002E\u0030-\u10FFFF] / '\\' Escape  // This is [\u0020-\u10FFFF] without " and \
+Escape <- ["\\/bfnrt] / 'u' Hex Hex Hex Hex
+Hex <- Digit / [a-fA-F]
+Digit <- '0' / OneNine
+OneNine <- [1-9]
+
+Number <- Integer Fraction? Exponent? { return newNumber(c) }
+Integer <- Digit / OneNine Digit+ / '-' Digit / '-' OneNine Digit+
+Fraction <- '.' Digit+
+Exponent <- [Ee] Sign? Digit+
+Sign <- [-+]

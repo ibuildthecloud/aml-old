@@ -1,0 +1,35 @@
+num: 1
+string: "str"
+float: 1.0
+bool: false
+null: null
+obj: {
+  num: 1
+  string: "str"
+  float: 1.0
+  bool: false
+  null: null
+  array: [
+    1,
+    "str",
+    1.0,
+    false,
+    null,
+    {a: "b"}
+  ]
+}
+---
+{
+  "bool": false,
+  "float": 1.0,
+  "null": null,
+  "num": 1,
+  "obj": {
+    "bool": false,
+    "float": 1.0,
+    "null": null,
+    "num": 1,
+    "string": "str"
+  },
+  "string": "str"
+}
