@@ -1,37 +1,41 @@
 package eval
 
 import (
-	"context"
-
-	"github.com/acorn-io/aml/parser/ast"
+	"errors"
 )
+
+type ErrKeyNotFound struct {
+	Key string
+}
+
+func (e *ErrKeyNotFound) Error() string {
+	return "key not found: " + e.Key
+}
 
 type Scope struct {
 	Parent    *Scope
 	Reference Reference
-	Name      string
 }
 
-func (s *Scope) Push(ref Reference, name string) *Scope {
+func (s *Scope) Lookup(key string) (Reference, error) {
+	var (
+		ref Reference
+		err error = &ErrKeyNotFound{
+			Key: key,
+		}
+	)
+	if s.Reference != nil {
+		ref, err = s.Reference.Lookup(key)
+	}
+	if k := (*ErrKeyNotFound)(nil); errors.As(err, &k) && s.Parent != nil {
+		return s.Parent.Lookup(key)
+	}
+	return ref, err
+}
+
+func (s *Scope) Push(ref Reference) *Scope {
 	return &Scope{
 		Parent:    s,
 		Reference: ref,
-		Name:      name,
 	}
-}
-
-type ScopeLookup struct {
-	Position ast.Position
-	Scope    *Scope
-	Key      string
-}
-
-func (s ScopeLookup) ResolveKey(ctx context.Context, key string) (Value, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s ScopeLookup) Resolve(ctx context.Context) (Value, error) {
-	//TODO implement me
-	panic("implement me")
 }

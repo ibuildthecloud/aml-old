@@ -1,18 +1,18 @@
 num: 1
 string: "str"
-float: 1.0
+float: 1.1
 bool: false
 null: null
 obj: {
   num: 1
   string: "str"
-  float: 1.0
+  float: 1.1
   bool: false
   null: null
   array: [
     1,
     "str",
-    1.0,
+    1.1,
     false,
     null,
     {a: "b"}
@@ -20,16 +20,26 @@ obj: {
 }
 ---
 {
-  "bool": false,
-  "float": 1.0,
-  "null": null,
-  "num": 1,
-  "obj": {
     "bool": false,
-    "float": 1.0,
+    "float": 1.1,
     "null": null,
     "num": 1,
+    "obj": {
+        "array": [
+            1,
+            "str",
+            1.1,
+            false,
+            null,
+            {
+                "a": "b"
+            }
+        ],
+        "bool": false,
+        "float": 1.1,
+        "null": null,
+        "num": 1,
+        "string": "str"
+    },
     "string": "str"
-  },
-  "string": "str"
 }

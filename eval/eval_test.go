@@ -39,11 +39,11 @@ func TestEval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := ToValue(context.Background(), node.(ast.Value))
+			v, err := ToValue(context.Background(), node.(*ast.Value))
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := json.MarshalIndent(v.Interface(), "", "  ")
+			result, err := json.MarshalIndent(v.Interface(), "", "    ")
 			if err != nil {
 				t.Fatal(err)
 			}
