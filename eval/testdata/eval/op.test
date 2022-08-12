@@ -1,0 +1,19 @@
+one: 6
+two: 2
+add: one + two
+mul: one * two
+div: one / two
+sub: one - two
+order: 1 + 2 * (3 + 1) / 2
+bool: false && true || true
+---
+{
+    "add": 8,
+    "bool": true,
+    "div": 3,
+    "mul": 12,
+    "one": 6,
+    "order": 5,
+    "sub": 4,
+    "two": 2
+}

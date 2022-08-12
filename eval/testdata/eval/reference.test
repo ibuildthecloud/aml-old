@@ -1,0 +1,17 @@
+one: {
+  four: "four"
+  three: "three"
+  parent: one.four
+  sibling: three
+}
+two: one.three
+---
+{
+    "one": {
+        "four": "four",
+        "parent": "four",
+        "sibling": "three",
+        "three": "three"
+    },
+    "two": "three"
+}
