@@ -1,0 +1,30 @@
+outer: 6
+loop: [for i, v in ["apple", "orange",outer,] {
+    count: 5 * i
+    val: v
+}
+    ]
+reference: loop[outer-5] & { v: "override" }
+---
+{
+    "loop": [
+        {
+            "count": 0,
+            "val": "apple"
+        },
+        {
+            "count": 5,
+            "val": "orange"
+        },
+        {
+            "count": 10,
+            "val": 6
+        }
+    ],
+    "outer": 6,
+    "reference": {
+        "count": 5,
+        "v": "override",
+        "val": "orange"
+    }
+}

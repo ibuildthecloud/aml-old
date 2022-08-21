@@ -7,6 +7,8 @@ obj: {
   num: 1
   string: "str"
   float: 1.1
+  intg: 1G
+  intgi: 1_000Gi
   bool: false
   null: null
   array: [
@@ -37,6 +39,8 @@ obj: {
         ],
         "bool": false,
         "float": 1.1,
+        "intg": 1000000000,
+        "intgi": 1073741824000,
         "null": null,
         "num": 1,
         "string": "str"

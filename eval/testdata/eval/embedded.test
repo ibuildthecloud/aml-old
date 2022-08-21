@@ -1,0 +1,28 @@
+outer: a: {1}
+outer: b: {outer.a}
+outer: {
+    o: {{a: "1
+    " + "hi"}}
+    i: o & {b: 2}
+}
+outer: c: {
+    2
+    if true {
+    3
+    }
+}
+---
+{
+    "outer": {
+        "a": 1,
+        "b": 1,
+        "c": 3,
+        "i": {
+            "a": "1\n    hi",
+            "b": 2
+        },
+        "o": {
+            "a": "1\n    hi"
+        }
+    }
+}

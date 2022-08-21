@@ -1,0 +1,18 @@
+let top = {
+    a: 1
+    b: 2
+}
+foo: top.a
+inner: {
+    let foo = {
+      "x": 2
+      y: 3
+    }
+}
+blah: inner.foo.x
+---
+{
+    "blah": 2,
+    "foo": 1,
+    "inner": {}
+}

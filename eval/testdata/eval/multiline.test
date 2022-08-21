@@ -1,0 +1,12 @@
+s: """
+  hi
+  bye
+  """
+s2: """hi
+  bye
+  """
+---
+{
+    "s": "hi\nbye\n",
+    "s2": "hi\n  bye\n  "
+}

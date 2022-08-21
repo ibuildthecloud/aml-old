@@ -1,11 +1,12 @@
 outer: 6
-if outer == 6 {
+inner: "ignored"
+if (outer == 6) && true {
     inner: "foo"
 }
 reference: inner
 ---
 {
-    "outer": 6,
     "inner": "foo",
+    "outer": 6,
     "reference": "foo"
 }

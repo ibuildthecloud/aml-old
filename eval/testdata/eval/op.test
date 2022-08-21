@@ -6,14 +6,26 @@ div: one / two
 sub: one - two
 order: 1 + 2 * (3 + 1) / 2
 bool: false && true || true
+eq: false == true
+eq2: false != true
+regeq: "hello" =~ "el[l]"
+regeq2: "helo" =~ "el[l]"
+regneq: "hello" !~ "el[l]"
+regneq2: "helo" !~ "el[l]"
 ---
 {
     "add": 8,
     "bool": true,
     "div": 3,
+    "eq": false,
+    "eq2": true,
     "mul": 12,
     "one": 6,
     "order": 5,
+    "regeq": true,
+    "regeq2": false,
+    "regneq": false,
+    "regneq2": true,
     "sub": 4,
     "two": 2
 }

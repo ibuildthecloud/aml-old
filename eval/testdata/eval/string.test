@@ -1,0 +1,10 @@
+outer: "hi
+bye"
+inner: """
+bye
+"""
+---
+{
+    "inner": "\nbye\n",
+    "outer": "hi\nbye"
+}

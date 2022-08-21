@@ -1,27 +1,39 @@
+one: two: 1
 val: {
     a: 1
     b: 2
     c: {
+        let dropped = 4
         a: 1
         b: 2
+        c: 4
     }
 } & {
     a: 2
     d: 2
     c: {
+        let dropped = "gone"
         a: 3
         e: 2
+        f: 4
+        h: dropped
     }
 }
 ---
 {
+    "one": {
+        "two": 1
+    },
     "val": {
         "a": 2,
         "b": 2,
         "c": {
             "a": 3,
             "b": 2,
-            "e": 2
+            "c": 4,
+            "e": 2,
+            "f": 4,
+            "h": "gone"
         },
         "d": 2
     }

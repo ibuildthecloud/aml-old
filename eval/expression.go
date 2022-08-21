@@ -7,186 +7,151 @@ import (
 	"github.com/acorn-io/aml/parser/ast"
 )
 
-type Expression struct {
-	Position ast.Position
-	Scope    *Scope
-
-	expr *ast.Expression
-	ref  Reference
-}
-
-func (e *Expression) Type() (Type, error) {
-	if err := e.process(); err != nil {
-		return "", err
-	}
-	return e.ref.Type()
-}
-
 type opChain struct {
 	Op *ast.Op
-	Reference
+	Value
 }
 
-func processMerge(chain []opChain) (result []opChain) {
+type Acc func(ctx context.Context, scope *Scope, pos ast.Position, op string, left, right Value) (_ Value, err error)
+
+func processOperators(ctx context.Context, scope *Scope, acc Acc, chain []opChain, operators ...string) (result []opChain, err error) {
 	for _, op := range chain {
-		switch op.Op.Op {
-		case "&":
-			result[len(result)-1].Reference = &Merge{
-				Position: op.Op.Position,
-				Left:     result[len(result)-1].Reference,
-				Right:    op.Reference,
+		found := false
+		for _, operator := range operators {
+			if op.Op.Op == operator {
+				result[len(result)-1].Value, err = acc(
+					ctx,
+					scope,
+					op.Op.Position,
+					op.Op.Op,
+					result[len(result)-1].Value,
+					op.Value)
+				found = true
+				if err != nil {
+					return nil, err
+				}
 			}
-		default:
+		}
+		if !found {
 			result = append(result, op)
 		}
 	}
-	return result
+	return result, nil
 }
 
-func processAnd(chain []opChain) (result []opChain) {
-	for _, op := range chain {
-		switch op.Op.Op {
-		case "&&":
-			fallthrough
-		case "||":
-			result[len(result)-1].Reference = &BinaryOp{
-				Position: op.Op.Position,
-				Op:       op.Op.Op,
-				Left:     result[len(result)-1].Reference,
-				Right:    op.Reference,
-			}
-		default:
-			result = append(result, op)
-		}
+func processOps(ctx context.Context, scope *Scope, chain []opChain) (_ Value, err error) {
+	chain, err = processOperators(ctx, scope, merge, chain, "&")
+	if err != nil {
+		return nil, err
 	}
-	return result
-}
-
-func processAdd(chain []opChain) (result []opChain) {
-	for _, op := range chain {
-		switch op.Op.Op {
-		case "+":
-			fallthrough
-		case "-":
-			result[len(result)-1].Reference = &BinaryOp{
-				Position: op.Op.Position,
-				Op:       op.Op.Op,
-				Left:     result[len(result)-1].Reference,
-				Right:    op.Reference,
-			}
-		default:
-			result = append(result, op)
-		}
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "*", "/")
+	if err != nil {
+		return nil, err
 	}
-	return result
-}
-
-func processMul(chain []opChain) (result []opChain) {
-	for _, op := range chain {
-		switch op.Op.Op {
-		case "*":
-			fallthrough
-		case "/":
-			result[len(result)-1].Reference = &BinaryOp{
-				Position: op.Op.Position,
-				Op:       op.Op.Op,
-				Left:     result[len(result)-1].Reference,
-				Right:    op.Reference,
-			}
-		default:
-			result = append(result, op)
-		}
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "+", "-")
+	if err != nil {
+		return nil, err
 	}
-	return result
-}
-
-func processOps(chain []opChain) (Reference, error) {
-	chain = processMerge(chain)
-	chain = processMul(chain)
-	chain = processAdd(chain)
-	chain = processAnd(chain)
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "&&", "||")
+	if err != nil {
+		return nil, err
+	}
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "==", "!=", "=~", "!~")
+	if err != nil {
+		return nil, err
+	}
 	if len(chain) > 1 {
 		return nil, fmt.Errorf("invalid op chain non recognized op: %s", chain[1].Op.Op)
 	}
-	return chain[0].Reference, nil
+	return chain[0].Value, nil
 }
 
-func (e *Expression) process() error {
-	if e.ref != nil {
-		return nil
-	}
-	ref, err := selectorToReference(e.Scope, e.expr.Selector)
+func EvaluateExpression(ctx context.Context, scope *Scope, expr *ast.Expression) (Value, error) {
+	val, err := selectorToValue(ctx, scope, expr.Selector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	chain := []opChain{{Reference: ref, Op: &ast.Op{Position: e.expr.Selector.Position}}}
-	for _, op := range e.expr.Operator {
-		opRef, err := selectorToReference(e.Scope, op.Selector)
+	chain := []opChain{{Value: val, Op: &ast.Op{Position: expr.Selector.Position}}}
+	for _, op := range expr.Operator {
+		opVal, err := selectorToValue(ctx, scope, op.Selector)
 		if err != nil {
-			return wrapErr(op.Selector.Position, err)
+			return nil, wrapErr(op.Selector.Position, err)
 		}
 		chain = append(chain, opChain{
-			Op:        op.Op,
-			Reference: opRef,
+			Op:    op.Op,
+			Value: opVal,
 		})
 	}
 
-	ref, err = processOps(chain)
+	val, err = processOps(ctx, scope, chain)
 	if err != nil {
-		return err
-	}
-
-	e.ref = ref
-	return nil
-}
-
-func (e *Expression) Lookup(key string) (_ Reference, err error) {
-	defer func() {
-		err = wrapErr(e.Position, err)
-	}()
-	if err := e.process(); err != nil {
 		return nil, err
 	}
-	return e.ref.Lookup(key)
+
+	return val, nil
 }
 
-func (e *Expression) Resolve(ctx context.Context) (_ Value, err error) {
-	defer func() {
-		err = wrapErr(e.Position, err)
-	}()
-	if err := e.process(); err != nil {
-		return nil, err
-	}
-	return e.ref.Resolve(ctx)
-}
-
-func selectorToReference(scope *Scope, sel *ast.Selector) (base Reference, err error) {
+func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base Value, err error) {
 	if sel.Literal != nil {
-		base, err = scope.Lookup(sel.Literal.Value)
+		base, err = scope.Lookup(ctx, sel.Literal.Value)
 		if err != nil {
 			return nil, wrapErr(sel.Literal.Position, err)
 		}
 	} else if sel.Value != nil {
-		base = toReference(scope, sel.Value)
+		base, err = ToValue(ctx, scope, sel.Value)
+		if err != nil {
+			return nil, wrapErr(sel.Value.Position, err)
+		}
 	} else if sel.Parens != nil {
-		base = toReference(scope, sel.Parens.Value)
+		base, err = ToValue(ctx, scope, sel.Parens.Value)
+		if err != nil {
+			return nil, wrapErr(sel.Parens.Position, err)
+		}
 	} else {
 		return nil, wrapErr(sel.Position, fmt.Errorf("invalid selector no selection set"))
 	}
 
+	var ok bool
 	for _, l := range sel.Lookup {
-		base, err = base.Lookup(l.Literal.Value)
-		if err != nil {
-			return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to find key %s: %w", l.Literal.Value, err))
+		if l.Literal != nil {
+			base, ok, err = base.Lookup(ctx, l.Literal.Value)
+			if err != nil {
+				return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to find key %s: %w", l.Literal.Value, err))
+			}
+			if !ok {
+				return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to find key %s", l.Literal.Value))
+			}
+		} else if l.Index != nil {
+			v, err := EvaluateExpression(ctx, scope, l.Index)
+			if err != nil {
+				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to evaluate index: %w", err))
+			}
+			base, ok, err = base.Index(ctx, v)
+			if err != nil {
+				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index: %w", err))
+			}
+			if !ok {
+				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index"))
+			}
+		} else if l.Call != nil {
+			var args []Value
+			for _, arg := range l.Call.Args {
+				v, err := ToValue(ctx, scope, arg)
+				if err != nil {
+					return nil, wrapErr(l.Call.Position, fmt.Errorf("failed to evaluate args: %w", err))
+				}
+				args = append(args, v)
+			}
+			base, err = base.Call(ctx, args...)
+			if err != nil {
+				return nil, wrapErr(l.Call.Position, fmt.Errorf("failed to call: %w", err))
+			}
 		}
 	}
 
 	if sel.Not {
-		base = &Not{
-			Position: sel.Position,
-			ref:      base,
-		}
+		return Not(ctx, sel.Position, base)
 	}
 
 	return base, nil

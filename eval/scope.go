@@ -1,7 +1,7 @@
 package eval
 
 import (
-	"errors"
+	"context"
 )
 
 type ErrKeyNotFound struct {
@@ -13,29 +13,38 @@ func (e *ErrKeyNotFound) Error() string {
 }
 
 type Scope struct {
-	Parent    *Scope
-	Reference Reference
+	Parent *Scope
+	Value  Value
 }
 
-func (s *Scope) Lookup(key string) (Reference, error) {
+func (s *Scope) Merge(other *Scope) *Scope {
+
+}
+
+func (s *Scope) Lookup(ctx context.Context, key string) (Value, error) {
 	var (
-		ref Reference
+		val Value
+		ok  bool
 		err error = &ErrKeyNotFound{
 			Key: key,
 		}
 	)
-	if s.Reference != nil {
-		ref, err = s.Reference.Lookup(key)
+	tick(ctx)
+	if s.Value != nil {
+		val, ok, err = s.Value.Lookup(ctx, key)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if k := (*ErrKeyNotFound)(nil); errors.As(err, &k) && s.Parent != nil {
-		return s.Parent.Lookup(key)
+	if !ok && s.Parent != nil {
+		return s.Parent.Lookup(ctx, key)
 	}
-	return ref, err
+	return val, err
 }
 
-func (s *Scope) Push(ref Reference) *Scope {
+func (s *Scope) Push(val Value) *Scope {
 	return &Scope{
-		Parent:    s,
-		Reference: ref,
+		Parent: s,
+		Value:  val,
 	}
 }

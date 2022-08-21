@@ -1,0 +1,13 @@
+outer: a: 1
+outer: b: [1]
+outer: c: "string"
+---
+{
+    "outer": {
+        "a": 1,
+        "b": [
+            1
+        ],
+        "c": "string"
+    }
+}

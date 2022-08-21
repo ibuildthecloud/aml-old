@@ -1,0 +1,15 @@
+outer: inner: {
+    a: 1
+}
+outer: inner: {
+    c: 2
+}
+---
+{
+    "outer": {
+        "inner": {
+            "a": 1,
+            "c": 2
+        }
+    }
+}

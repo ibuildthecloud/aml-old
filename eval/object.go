@@ -7,127 +7,354 @@ import (
 	"github.com/acorn-io/aml/parser/ast"
 )
 
+var _ ObjectValue = (*ObjectReference)(nil)
+
 type ObjectReference struct {
 	Position ast.Position
 	Scope    *Scope
+	Fields   []*ast.Field
 
-	object    *ast.Object
-	keyOrder  []string
-	fields    map[string]*FieldReference
-	resolving bool
+	fields         []*FieldReference
+	values         map[string]Value
+	keyOrder       []string
+	embedded       *bool
+	embeddedValue  Value
+	embeddedLookup bool
 }
 
-func (o *ObjectReference) Type() (Type, error) {
+func EmptyObjectReference(pos ast.Position, scope *Scope) *ObjectReference {
+	return &ObjectReference{
+		Position: pos,
+		Scope:    scope,
+	}
+}
+
+func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
+	o.process()
+	if o.keyOrder != nil {
+		return o.keyOrder, nil
+	}
+
+	keyNames := map[string]bool{}
+	for _, f := range o.FieldList {
+		if f.Hidden() {
+			continue
+		}
+		keys, err := f.Keys(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range keys {
+			if keyNames[key] {
+				continue
+			}
+			keyNames[key] = true
+			result = append(result, key)
+		}
+	}
+
+	o.keyOrder = result
+	return o.keyOrder, nil
+}
+
+func (o *ObjectReference) getEmbeddedObject(ctx context.Context) (Value, error) {
+	if o.embeddedValue != nil {
+		return o.embeddedValue, nil
+	}
+
+	v, _, err := o.Lookup(ctx, EmbeddedKey)
+	if err != nil {
+		return nil, err
+	}
+	o.embeddedValue = v
+	return v, nil
+}
+
+func (o *ObjectReference) Type(ctx context.Context) (Type, error) {
+	if ok, err := o.isEmbedded(); err != nil {
+		return TypeObject, err
+	} else if ok {
+		if o, err := o.getEmbeddedObject(ctx); err != nil {
+			return TypeObject, err
+		} else {
+			return o.Type(ctx)
+		}
+	}
 	return TypeObject, nil
 }
 
-func (o *ObjectReference) Lookup(key string) (Reference, error) {
-	o.processFields()
-	f, ok := o.fields[key]
-	if !ok {
-		return nil, &ErrKeyNotFound{key}
+func (o *ObjectReference) Call(ctx context.Context, args ...Value) (_ Value, err error) {
+	defer func() {
+		err = wrapErr(o.Position, err)
+	}()
+	tick(ctx)
+
+	if o.object == nil {
+		return nil, fmt.Errorf("call not supported on merged object")
 	}
-	return f, nil
+
+	f := &ObjectReference{
+		Position: o.Position,
+		Scope:    o.Scope,
+		object:   o.object,
+		values: map[string]Value{
+			"args": &Array{
+				Position: o.Position,
+				values:   args,
+			},
+		},
+	}
+	ret, _, err := f.Lookup(ctx, "return")
+	return ret, err
 }
 
-func (o *ObjectReference) processFields() {
+func (o *ObjectReference) isEmbedded() (bool, error) {
+	if o.embedded != nil {
+		return *o.embedded, nil
+	}
+
+	o.process()
+
+	if len(o.FieldList) == 0 {
+		return false, nil
+	}
+
+	embedded, err := o.FieldList[0].Embedded()
+	if err != nil {
+		return false, err
+	}
+
+	for i := 1; i < len(o.FieldList); i++ {
+		newEmbedded, err := o.FieldList[i].Embedded()
+		if err != nil {
+			return false, err
+		}
+		if newEmbedded != embedded {
+			return false, fmt.Errorf("can not mix embedded objects with fields")
+		}
+	}
+
+	o.embedded = &embedded
+	return embedded, nil
+}
+
+func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bool, err error) {
+	defer func() {
+		err = wrapErr(o.Position, err)
+	}()
+	tick(ctx)
+
+	if key != EmbeddedKey {
+		if ok, err := o.isEmbedded(); err != nil {
+			return nil, false, err
+		} else if ok {
+			if o.embeddedLookup {
+				return nil, false, nil
+			}
+			o.embeddedLookup = true
+			defer func() {
+				o.embeddedLookup = false
+			}()
+			if o, err := o.getEmbeddedObject(ctx); err != nil {
+				return nil, false, err
+			} else {
+				return o.Lookup(ctx, key)
+			}
+		}
+	}
+
+	o.process()
+
+	if v, ok := o.values[key]; ok {
+		return v, true, nil
+	}
+
+	var (
+		values []ValuePosition
+	)
+	for _, f := range o.fields {
+		v, ok, err := f.Value(ctx, key)
+		if err != nil {
+			return nil, false, err
+		}
+		if !ok {
+			continue
+		}
+		values = append(values, ValuePosition{
+			Value:    v,
+			Position: f.Position(),
+		})
+	}
+
+	if len(values) == 0 {
+		return nil, false, nil
+	}
+
+	v, err := MergeSlice(ctx, o.Scope, values...)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if o.values == nil {
+		o.values = map[string]Value{}
+	}
+	o.values[key] = v
+	return v, true, nil
+}
+
+func (o *ObjectReference) process() {
 	if o.fields != nil {
 		return
 	}
 
 	var (
-		keyNames = map[string]bool{}
-		keyOrder []string
-		fields   = map[string]*FieldReference{}
+		parent = &ObjectReference{
+			Position: o.Position,
+			Scope:    o.Scope,
+		}
+		fieldList []*FieldReference
 	)
 
-	for i := range o.object.Fields {
-		fr := FieldReference{
-			Field: o.object.Fields[i],
-			Scope: o.Scope.Push(o),
-		}
-		for _, key := range fr.Keys() {
-			if keyNames[key] {
-				continue
-			}
-			keyOrder = append(keyOrder, key)
-			cp := fr
-			cp.Key = key
-			fields[key] = &cp
+	for _, field := range o.Fields {
+		if field.For != nil || field.If != nil {
+			fieldList = append(fieldList, &FieldReference{
+				Field: field,
+				Scope: o.Scope.Push(parent),
+			})
+		} else {
+			parent.fields = append(parent.fields, &FieldReference{
+				Field: field,
+				Scope: o.Scope.Push(parent),
+			})
+			fieldList = append(fieldList, &FieldReference{
+				Field: field,
+				Scope: o.Scope.Push(o),
+			})
 		}
 	}
 
-	o.keyOrder = keyOrder
-	o.fields = fields
-	return
+	o.fields = fieldList
 }
 
-func (o *ObjectReference) Resolve(ctx context.Context) (_ Value, err error) {
+func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err error) {
 	defer func() {
-		o.resolving = false
 		err = wrapErr(o.Position, err)
 	}()
-	if o.resolving {
-		return nil, fmt.Errorf("cycle detected")
+	tick(ctx)
+
+	if ok, err := o.isEmbedded(); err != nil {
+		return nil, err
+	} else if ok {
+		if o, err := o.getEmbeddedObject(ctx); err != nil {
+			return nil, err
+		} else {
+			return o.Interface(ctx)
+		}
 	}
-	o.resolving = true
-	o.processFields()
+
+	o.process()
 
 	data := map[string]interface{}{}
 
-	for _, key := range o.keyOrder {
-		v, err := o.fields[key].Resolve(ctx)
+	values, err := o.Values(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range values {
+		data[v.Key], err = v.Value.Interface(ctx)
 		if err != nil {
 			return nil, err
 		}
-		data[key] = v.Interface()
 	}
 
-	return &Object{data: data}, nil
+	return data, nil
 }
 
-type FieldReference struct {
-	Scope     *Scope
-	Key       string
-	Field     *ast.Field
-	ref       Reference
-	resolving bool
-}
-
-func (f *FieldReference) Type() (Type, error) {
-	f.process()
-	return f.ref.Type()
-}
-
-func (f *FieldReference) process() {
-	if f.ref != nil {
-		return
-	}
-	f.ref = toReference(f.Scope, f.Field.Value)
-}
-
-func (f *FieldReference) Lookup(key string) (_ Reference, err error) {
+func (o *ObjectReference) Values(ctx context.Context) (_ []Local, err error) {
 	defer func() {
-		err = wrapErr(f.Field.Position, err)
+		err = wrapErr(o.Position, err)
 	}()
-	f.process()
-	return f.ref.Lookup(key)
-}
+	tick(ctx)
 
-func (f *FieldReference) Resolve(ctx context.Context) (_ Value, err error) {
-	defer func() {
-		f.resolving = false
-		err = wrapErr(f.Field.Position, err)
-	}()
-	if f.resolving {
-		return nil, fmt.Errorf("cycle detected")
+	keys, err := o.Keys(ctx)
+	if err != nil {
+		return nil, err
 	}
-	f.resolving = true
-
-	f.process()
-	return f.ref.Resolve(ctx)
+	var result []Local
+	for _, key := range keys {
+		v, ok, err := o.Lookup(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			continue
+		}
+		result = append(result, Local{
+			Key:   key,
+			Value: v,
+		})
+	}
+	return result, nil
 }
 
-func (f *FieldReference) Keys() []string {
-	return []string{f.Field.Key}
+func (o *ObjectReference) GetPosition(ctx context.Context) (ast.Position, error) {
+	return o.Position, nil
+}
+
+func (o *ObjectReference) GetScope(ctx context.Context) (*Scope, error) {
+	return o.Scope, nil
+}
+
+func (o *ObjectReference) GetFields(ctx context.Context) ([]*ast.Field, error) {
+	return o.Fields, nil
+}
+
+func (o *ObjectReference) Index(ctx context.Context, val Value) (Value, bool, error) {
+	if t, err := val.Type(ctx); err != nil {
+		return nil, false, err
+	} else if t != TypeString {
+		return nil, false, fmt.Errorf("can not use type %s as an index to an object", t)
+	}
+	obj, err := val.Interface(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return o.Lookup(ctx, obj.(string))
+}
+
+func (o *ObjectReference) Merge(ctx context.Context, val ObjectValue) (Value, error) {
+	if ok, err := o.isEmbedded(); err != nil {
+		return nil, err
+	} else if ok {
+		if o, err := o.getEmbeddedObject(ctx); err != nil {
+			return nil, err
+		} else {
+			return o.(ObjectValue).Merge(ctx, val)
+		}
+	}
+
+	o.process()
+
+	rightPosition, err := val.GetPosition(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rightFields, err := val.GetFields(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rightScope, err := val.GetScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ObjectReference{
+		Position: rightPosition,
+		Scope:    o.Scope.Merge(rightScope),
+		Fields:   append(o.Fields, rightFields...),
+	}, nil
 }

@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
@@ -10,16 +9,34 @@ type Object struct {
 	Fields   []*Field
 }
 
-type Field struct {
+type Key struct {
 	Position Position
-	Key      string
-	Value    *Value
+	Name     *String
+	Match    bool
 }
 
-type IfField struct {
-	Position  Position
+type Field struct {
+	Position Position
+	Key      Key
+
+	Let      bool
+	Embedded bool
+	Value    *Value
+	If       *If
+	For      *For
+}
+
+type If struct {
 	Condition *Expression
 	Object    *Object
+}
+
+type For struct {
+	Position Position
+	IndexVar string
+	ValueVar string
+	Array    *Expression
+	Object   *Object
 }
 
 type Position struct {
@@ -36,15 +53,35 @@ func (p Position) IsSet() bool {
 	return p.Line != 0 || p.Col != 0 || p.Offset != 0
 }
 
-type Value struct {
-	Position   Position
-	Array      *Array
-	Object     *Object
+type String struct {
+	Position Position
+	Parts    []StringPart
+}
+
+type StringPart struct {
 	String     *string
-	Number     *json.Number
-	Bool       *bool
-	Null       bool
 	Expression *Expression
+}
+
+type Number string
+
+type CommentGroups struct {
+	Position Position
+	End      int
+	Lines    []string
+}
+
+type Value struct {
+	Comments          map[int]CommentGroups
+	Position          Position
+	Array             *Array
+	Object            *Object
+	String            *String
+	Number            *Number
+	Bool              *bool
+	Null              bool
+	Expression        *Expression
+	ListComprehension *For
 }
 
 type Op struct {
@@ -72,6 +109,13 @@ type Expression struct {
 type Lookup struct {
 	Position Position
 	Literal  *Literal
+	Index    *Expression
+	Call     *Call
+}
+
+type Call struct {
+	Position Position
+	Args     []*Value
 }
 
 type Selector struct {

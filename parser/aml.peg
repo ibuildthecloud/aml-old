@@ -1,16 +1,26 @@
 {package parser}
 
-Input <- v1:(Object / Field*) EOF { return toInput(v1, c) }
+Input <- __ v1:(Object / Field*) EOF { return toInput(v1, c) }
 
 Object <- LBRACE v1:Field* RBRACE { return toObject(v1, c) }
 
-Field <- IfField / KeyField
+Field <- IfField / ForField / LetField / FieldField / KeyField / EmbeddedField
 
-IfField <- IF Expression Object { return toIf(v1, c) }
+EmbeddedField <- v1:Expression ','? { return toEmbeddedField(v1, c) }
+
+LetField <- LET v1:Identifier ASSIGN v2:Expression ','? { return toLetField(v1, v2, c) }
+
+IfField <- IF v1:Expression v2:Object ','? { return toIfField(v1, v2, c) }
 
 KeyField <- v1:Key COLON v2:Expression ','? { return toField(v1, v2, c) }
 
-Key <- String / Identifier
+FieldField <- v1:Key COLON v2:(ForField / FieldField / KeyField) ','? { return toFieldField(v1, v2, c) }
+
+ForField <- FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object ','? { return toForField(v1, v2, v3, v4, c) }
+
+Key <- v1:(String / Identifier / KeyMatch) { return toKey(v1, c) }
+
+KeyMatch <- LBRACKET REGEQ v1:String RBRACKET { return toKeyMatch(v1, c) }
 
 Value <- Null / Boolean / Number / Array / Object / String
 
@@ -18,17 +28,26 @@ Null <- NULL { return toNull(c) }
 
 Boolean <- v1:(TRUE / FALSE) { return toBool(v1, c) }
 
-String <- '"' v1:(!'"' Character)* '"' __ { return toString(v1, c) }
+String <- TripleString / SingleString
+
+SingleString <- '"' v1:(!'"' (Interpolation / Character))* '"' __ { return toString(v1, c) }
+TripleString <- "\"\"\"" v1:(!'"' (Interpolation / Character))* "\"\"\"" __ { return toString(v1, c) }
+
+Interpolation <- "\\(" v1:Expression ')' { return noop(v1) }
 
 Expression <- v1:Selector v2:(Op Selector)* { return toExpression(v1, v2, c) }
 
-Selector <- v1:NOT? v2:(Parens / Value / Identifier) v3:DotLookup* { return toSelector(v1, v2, v3, c) }
+Selector <- v1:NOT? v2:(Parens / ListComprehension / Value / Identifier) v3:(DotLookup/IndexLookup/Call)* { return toSelector(v1, v2, v3, c) }
+
+ListComprehension <- LBRACKET FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object RBRACKET { return toListComprehension(v1, v2, v3, v4, c) }
 
 Parens <- LPAREN v1:Expression RPAREN { return toParens(v1, c) }
 
 DotLookup <- '.' v1:Identifier { return toDotLookup(v1, c) }
+IndexLookup <- LBRACKET v1:Expression RBRACKET { return toIndexLookup(v1, c) }
+Call <- LPAREN v1:Expression? v2:(COMMA Expression)* RPAREN { return toCall(v1, v2, c) }
 
-Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS ) { return newOp(v1, c) }
+Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS / REGEQ / REGNEQ ) { return newOp(v1, c) }
 
 Array <- LBRACKET v1:Expression? v2:(COMMA Expression)* COMMA? RBRACKET { return toArray(v1, v2, c) }
 
@@ -36,23 +55,28 @@ Identifier <- IdentStart IdentCont* __ { return currentString(c) }
 IdentStart <- [a-zA-Z_]
 IdentCont <- IdentStart / Digit
 
-Character <- '\\' 'u' Hex Hex Hex Hex /
+Character <- ('\\' 'u' Hex Hex Hex Hex /
     '\\' [bfnrt'"\\] /
-    [\u0020-\u10FFFF] { return toChar(c) }
+    [\n\r] /
+    [\u0020-\u10FFFF]) { return toChar(c) }
 
 Hex <- Digit / [a-fA-F]
 Digit <- '0' / OneNine
 OneNine <- [1-9]
 
-Number <- Integer Fraction? Exponent? __ { return toNumber(c) }
-Integer <- Digit / OneNine Digit+ / '-' Digit / '-' OneNine Digit+
+Number <- Integer Fraction? Exponent? Suffix? __ { return toNumber(c) }
+Integer <- OneNine DigitUnderscore+ / Digit / '-' OneNine DigitUnderscore+ / '-' Digit
+DigitUnderscore <- '_' / Digit
 Fraction <- '.' Digit+
 Exponent <- [Ee] Sign? Digit+
 Sign <- [-+]
+Suffix <- BiSuffix / DecSuffix
+BiSuffix <- [KkMmGgTtPpEeZzYy] 'i'
+DecSuffix <- [KkMmGgTtPpEeZzYy]
 
-__ <- (_ / Comment)*
-_ <- ' ' / '\t' / EOL
-Comment <- "//" (!EOL .)* EOL
+__ <- v1:_* #{ return whitespace(v1, c) }
+_ <- v1:(' ' / '\t' / EOL / Comment) { return space(c) }
+Comment <- "//" (!EOL .)* EOL { return space(c) }
 Quote <- '"'
 EOL <- "\r\n" / '\n' / '\r'
 EOF <- !.
@@ -61,8 +85,11 @@ EOF <- !.
 NULL <- "null" __ { return currentString(c) }
 TRUE <- "true" __ { return currentString(c) }
 FALSE <- "false" __ { return currentString(c) }
+LET <- "let" __ { return currentString(c) }
+ASSIGN <- '=' __ { return currentString(c) }
 NOT <- '!' __ { return currentString(c) }
 IF <- "if" __ { return currentString(c) }
+IN <- "in" __ { return currentString(c) }
 FOR <- "for" __ { return currentString(c) }
 COMMA <- ',' __ { return currentString(c) }
 LPAREN <- '(' __ { return currentString(c) }
@@ -81,3 +108,5 @@ NOTEQUALS <- "!=" __ { return currentString(c) }
 AND <- "&&" __ { return currentString(c) }
 OR <- "||" __ { return currentString(c) }
 COLON <- ':' __ { return currentString(c) }
+REGEQ <- "=~" __ { return currentString(c) }
+REGNEQ <- "!~" __ { return currentString(c) }

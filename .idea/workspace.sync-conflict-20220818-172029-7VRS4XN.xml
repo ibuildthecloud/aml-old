@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b33915aa-8735-40ad-b11a-f791255324f4" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/eval/array.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/array.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/error.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/error.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/eval_test.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/eval_test.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/expression.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/expression.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/merge.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/merge.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/object.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/object.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/op.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/op.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/scope.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/scope.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/testdata/eval/if.test" beforeDir="false" afterPath="$PROJECT_DIR$/eval/testdata/eval/if.test" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/testdata/eval/merge.test" beforeDir="false" afterPath="$PROJECT_DIR$/eval/testdata/eval/merge.test" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eval/value.go" beforeDir="false" afterPath="$PROJECT_DIR$/eval/value.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/parser/aml.go" beforeDir="false" afterPath="$PROJECT_DIR$/parser/aml.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/parser/aml.peg" beforeDir="false" afterPath="$PROJECT_DIR$/parser/aml.peg" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/parser/ast/ast.go" beforeDir="false" afterPath="$PROJECT_DIR$/parser/ast/ast.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/parser/nodes.go" beforeDir="false" afterPath="$PROJECT_DIR$/parser/nodes.go" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Go File" />
+      </list>
+    </option>
+  </component>
+  <component name="GOROOT" url="file://$USER_HOME$/.local/go" />
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="KubernetesApiPersistence">
+    <option name="context" value="k3d-default" />
+    <option name="namespace" value="default" />
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="ant1lo15" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectId" id="2BpRbXlRUPWCzbwtWcu9tiNalpi" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="autoscrollFromSource" value="true" />
+    <option name="autoscrollToSource" value="true" />
+    <option name="flattenPackages" value="true" />
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showMembers" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;DefaultGoTemplateProperty&quot;: &quot;Go File&quot;,
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.format.on.save.advertiser.fired&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.watchers.conflict.with.on.save.actions.check.performed&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/darren/src/aml/eval/testdata/eval&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.fileTypes&quot;
+  }
+}</component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/eval/testdata/eval" />
+      <recent name="$PROJECT_DIR$/parser/testdata" />
+      <recent name="$PROJECT_DIR$/parser" />
+    </key>
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/eval/testdata/eval" />
+      <recent name="$PROJECT_DIR$/parser" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Go Test.TestEval/embed in github.com/acorn-io/aml/eval">
+    <configuration name="TestCases/values.aml in github.com/acorn-io/aml/parser" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="aml" />
+      <working_directory value="$PROJECT_DIR$/parser" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/acorn-io/aml/parser" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="TestCases/values.aml" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestEval in github.com/acorn-io/aml/eval" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="aml" />
+      <working_directory value="$PROJECT_DIR$/eval" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/acorn-io/aml/eval" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestEval\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestEval/embed in github.com/acorn-io/aml/eval" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="aml" />
+      <working_directory value="$PROJECT_DIR$/eval" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/acorn-io/aml/eval" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestEval\E$/^\Qembed\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestEval/for in github.com/acorn-io/aml/eval" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="aml" />
+      <working_directory value="$PROJECT_DIR$/eval" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/acorn-io/aml/eval" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestEval\E$/^\Qfor\E$" />
+      <method v="2" />
+    </configuration>
+    <configuration name="TestEval/simple-structure in github.com/acorn-io/aml/eval" type="GoTestRunConfiguration" factoryName="Go Test" temporary="true" nameIsGenerated="true">
+      <module name="aml" />
+      <working_directory value="$PROJECT_DIR$/eval" />
+      <root_directory value="$PROJECT_DIR$" />
+      <kind value="PACKAGE" />
+      <package value="github.com/acorn-io/aml/eval" />
+      <directory value="$PROJECT_DIR$" />
+      <filePath value="$PROJECT_DIR$" />
+      <framework value="gotest" />
+      <pattern value="^\QTestEval\E$/^\Qsimple-structure\E$" />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Go Test.TestEval/embed in github.com/acorn-io/aml/eval" />
+      <item itemvalue="Go Test.TestEval/for in github.com/acorn-io/aml/eval" />
+      <item itemvalue="Go Test.TestEval/simple-structure in github.com/acorn-io/aml/eval" />
+      <item itemvalue="Go Test.TestCases/values.aml in github.com/acorn-io/aml/parser" />
+      <item itemvalue="Go Test.TestEval in github.com/acorn-io/aml/eval" />
+    </list>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Test.TestEval/embed in github.com/acorn-io/aml/eval" />
+        <item itemvalue="Go Test.TestEval in github.com/acorn-io/aml/eval" />
+        <item itemvalue="Go Test.TestEval/for in github.com/acorn-io/aml/eval" />
+        <item itemvalue="Go Test.TestEval/simple-structure in github.com/acorn-io/aml/eval" />
+        <item itemvalue="Go Test.TestCases/values.aml in github.com/acorn-io/aml/parser" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VgoProject">
+    <settings-migrated>true</settings-migrated>
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/parser/aml_test.go</url>
+          <line>579</line>
+          <option name="timeStamp" value="39" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/value.go</url>
+          <line>113</line>
+          <option name="timeStamp" value="45" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/merge.go</url>
+          <line>59</line>
+          <option name="timeStamp" value="52" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/merge.go</url>
+          <line>54</line>
+          <option name="timeStamp" value="55" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/list.go</url>
+          <line>15</line>
+          <option name="timeStamp" value="59" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/object.go</url>
+          <line>165</line>
+          <option name="timeStamp" value="61" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/eval_test.go</url>
+          <line>42</line>
+          <option name="timeStamp" value="64" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
+          <url>file://$PROJECT_DIR$/eval/merge.go</url>
+          <line>26</line>
+          <option name="timeStamp" value="65" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

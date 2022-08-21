@@ -1,0 +1,17 @@
+// outer
+outer: inner: // {
+{
+    // field args
+    // line2
+
+    // new block
+    args: 1 // trailing
+}
+---
+{
+    "outer": {
+        "inner": {
+            "args": 1
+        }
+    }
+}

@@ -25,7 +25,7 @@ func TestEval(t *testing.T) {
 		if file.IsDir() {
 			continue
 		}
-		t.Run(file.Name(), func(t *testing.T) {
+		t.Run(strings.TrimSuffix(file.Name(), ".test"), func(t *testing.T) {
 			bytes, err := ioutil.ReadFile(filepath.Join(dir, file.Name()))
 			if err != nil {
 				t.Fatal(err)
@@ -39,11 +39,15 @@ func TestEval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := ToValue(context.Background(), node.(*ast.Value))
+			v, err := ToValue(context.Background(), &Scope{}, node.(*ast.Value))
 			if err != nil {
 				t.Fatal(err)
 			}
-			result, err := json.MarshalIndent(v.Interface(), "", "    ")
+			iface, err := v.Interface(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := json.MarshalIndent(iface, "", "    ")
 			if err != nil {
 				t.Fatal(err)
 			}

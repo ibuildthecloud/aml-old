@@ -4,25 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 
 	"github.com/acorn-io/aml/parser/ast"
 )
-
-type BinaryOp struct {
-	Position ast.Position
-	Op       string
-	Left     Reference
-	Right    Reference
-}
-
-func (b *BinaryOp) Type() (Type, error) {
-	return b.Left.Type()
-}
-
-func (b *BinaryOp) Lookup(key string) (Reference, error) {
-	t, _ := b.Type()
-	return nil, wrapErr(b.Position, fmt.Errorf("can not lookup key %s on type %s", key, t))
-}
 
 func toNum(num json.Number) interface{} {
 	i, err := num.Int64()
@@ -36,73 +21,133 @@ func toNum(num json.Number) interface{} {
 	return i
 }
 
-func (b *BinaryOp) Resolve(ctx context.Context) (_ Value, err error) {
+func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, right Value) (_ Value, err error) {
 	defer func() {
-		err = wrapErr(b.Position, err)
+		err = wrapErr(pos, err)
 	}()
 
-	lt, err := b.Left.Type()
+	lt, err := left.Type(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rt, err := b.Right.Type()
+	rt, err := right.Type(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if lt != rt {
-		return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", b.Op, lt, rt)
+		return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", op, lt, rt)
 	}
 
-	l, err := b.Left.Resolve(ctx)
+	if op == "+" && lt == TypeArray {
+		var val []Value
+		leftIter, leftErr := left.(ArrayValue).Iterator(ctx)
+		if leftErr != nil {
+			return nil, leftErr
+		}
+		rightIter, rightErr := right.(ArrayValue).Iterator(ctx)
+		if rightErr != nil {
+			return nil, rightErr
+		}
+
+		for {
+			v, cont, err := leftIter.Next()
+			if err != nil {
+				return nil, err
+			}
+			val = append(val, v)
+			if !cont {
+				break
+			}
+		}
+		for {
+			v, cont, err := rightIter.Next()
+			if err != nil {
+				return nil, err
+			}
+			if !cont {
+				break
+			}
+			val = append(val, v)
+		}
+		return &Array{
+			Position: pos,
+			values:   val,
+		}, nil
+	}
+
+	lv, err := left.Interface(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rv, err := right.Interface(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	r, err := b.Right.Resolve(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	lv := l.Interface()
-	rv := r.Interface()
-
-	if b.Op == "+" {
+	if op == "+" {
 		if lt == TypeString {
 			s := lv.(string) + rv.(string)
 			return &Scalar{
-				Position: b.Position,
+				Position: pos,
 				String:   &s,
 			}, nil
-		} else if lt == TypeArray {
-			return &ArrayValue{
-				Position: b.Position,
-				Value:    append(lv.([]interface{}), rv.([]interface{})...),
-			}, nil
 		}
-	} else if b.Op == "&&" {
+	} else if op == "&&" {
 		if lt != TypeBool {
-			return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", b.Op, lt, rt)
+			return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", op, lt, rt)
 		}
 		ret := lv.(bool) && rv.(bool)
 		return &Scalar{
-			Position: b.Position,
+			Position: pos,
 			Bool:     &ret,
 		}, nil
-	} else if b.Op == "||" {
+	} else if op == "||" {
 		if lt != TypeBool {
-			return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", b.Op, lt, rt)
+			return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", op, lt, rt)
 		}
 		ret := lv.(bool) || rv.(bool)
 		return &Scalar{
-			Position: b.Position,
+			Position: pos,
+			Bool:     &ret,
+		}, nil
+	} else if op == "==" {
+		ret := lv == rv
+		return &Scalar{
+			Position: pos,
+			Bool:     &ret,
+		}, nil
+	} else if op == "!=" {
+		ret := lv != rv
+		return &Scalar{
+			Position: pos,
+			Bool:     &ret,
+		}, nil
+	} else if op == "=~" {
+		regexp, err := regexp.Compile(rv.(string))
+		if err != nil {
+			return nil, err
+		}
+		ret := regexp.MatchString(lv.(string))
+		return &Scalar{
+			Position: pos,
+			Bool:     &ret,
+		}, nil
+	} else if op == "!~" {
+		regexp, err := regexp.Compile(rv.(string))
+		if err != nil {
+			return nil, err
+		}
+		ret := !regexp.MatchString(lv.(string))
+		return &Scalar{
+			Position: pos,
 			Bool:     &ret,
 		}, nil
 	}
 
 	if lt != TypeNumber {
-		return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", b.Op, lt, rt)
+		return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", op, lt, rt)
 	}
 
 	lv = toNum(lv.(json.Number))
@@ -120,7 +165,7 @@ func (b *BinaryOp) Resolve(ctx context.Context) (_ Value, err error) {
 		} else if !frvok {
 			frv = float64(irv)
 		}
-		switch b.Op {
+		switch op {
 		case "*":
 			ret = flv * frv
 		case "/":
@@ -132,13 +177,13 @@ func (b *BinaryOp) Resolve(ctx context.Context) (_ Value, err error) {
 		}
 		s := fmt.Sprint(ret)
 		return &Scalar{
-			Position: b.Position,
-			Number:   (*json.Number)(&s),
+			Position: pos,
+			Number:   (*ast.Number)(&s),
 		}, nil
 	}
 
 	var ret int64
-	switch b.Op {
+	switch op {
 	case "*":
 		ret = ilv * irv
 	case "/":
@@ -150,52 +195,31 @@ func (b *BinaryOp) Resolve(ctx context.Context) (_ Value, err error) {
 	}
 	s := fmt.Sprint(ret)
 	return &Scalar{
-		Position: b.Position,
-		Number:   (*json.Number)(&s),
+		Position: pos,
+		Number:   (*ast.Number)(&s),
 	}, nil
 }
 
-type Not struct {
-	Position ast.Position
-	ref      Reference
-}
-
-func (n Not) Type() (Type, error) {
-	return TypeBool, nil
-}
-
-func (n Not) Lookup(key string) (_ Reference, err error) {
+func Not(ctx context.Context, pos ast.Position, val Value) (_ Value, err error) {
 	defer func() {
-		err = wrapErr(n.Position, err)
-	}()
-	return n.ref.Lookup(key)
-}
-
-func (n Not) Resolve(ctx context.Context) (_ Value, err error) {
-	defer func() {
-		err = wrapErr(n.Position, err)
+		err = wrapErr(pos, err)
 	}()
 
-	t, err := n.ref.Type()
+	t, err := val.Type(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := n.ref.Resolve(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	val, ok := v.(*Scalar)
+	scalar, ok := val.(*Scalar)
 	if !ok {
 		return nil, fmt.Errorf("operator ! not applicable for type: %s", t)
-	} else if val.Bool == nil {
-		return nil, wrapErr(val.Position, fmt.Errorf("operator ! not applicable for type: %s", t))
+	} else if scalar.Bool == nil {
+		return nil, wrapErr(scalar.Position, fmt.Errorf("operator ! not applicable for type: %s", t))
 	}
 
-	not := !(*val.Bool)
+	not := !(*scalar.Bool)
 	return &Scalar{
-		Position: val.Position,
+		Position: scalar.Position,
 		Bool:     &not,
 	}, nil
 }
