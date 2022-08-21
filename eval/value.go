@@ -165,7 +165,7 @@ func ToObject(scope *Scope, v *ast.Object) *ObjectReference {
 	return &ObjectReference{
 		Position: v.Position,
 		Scope:    scope,
-		object:   v,
+		Fields:   v.Fields,
 	}
 }
 

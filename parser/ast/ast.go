@@ -114,8 +114,9 @@ type Lookup struct {
 }
 
 type Call struct {
-	Position Position
-	Args     []*Value
+	Position  Position
+	NamedArgs *Object
+	Args      *Array
 }
 
 type Selector struct {

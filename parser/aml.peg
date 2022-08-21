@@ -45,7 +45,10 @@ Parens <- LPAREN v1:Expression RPAREN { return toParens(v1, c) }
 
 DotLookup <- '.' v1:Identifier { return toDotLookup(v1, c) }
 IndexLookup <- LBRACKET v1:Expression RBRACKET { return toIndexLookup(v1, c) }
-Call <- LPAREN v1:Expression? v2:(COMMA Expression)* RPAREN { return toCall(v1, v2, c) }
+Call <- LPAREN v1:(NamedArgs / PositionalArgs) RPAREN { return noop(v1) }
+
+PositionalArgs <- v1:Expression? v2:(COMMA Expression)* { return toPosArgsCall(v1, v2, c) }
+NamedArgs <- v1:KeyField* { return toNamedArgsCall(v1, v2, c) }
 
 Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS / REGEQ / REGNEQ ) { return newOp(v1, c) }
 

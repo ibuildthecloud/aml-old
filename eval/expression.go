@@ -94,9 +94,15 @@ func EvaluateExpression(ctx context.Context, scope *Scope, expr *ast.Expression)
 
 func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base Value, err error) {
 	if sel.Literal != nil {
-		base, err = scope.Lookup(ctx, sel.Literal.Value)
+		var ok bool
+		base, ok, err = scope.Lookup(ctx, sel.Literal.Value)
 		if err != nil {
 			return nil, wrapErr(sel.Literal.Position, err)
+		}
+		if !ok {
+			return nil, wrapErr(sel.Literal.Position, &ErrKeyNotFound{
+				Key: sel.Literal.Value,
+			})
 		}
 	} else if sel.Value != nil {
 		base, err = ToValue(ctx, scope, sel.Value)

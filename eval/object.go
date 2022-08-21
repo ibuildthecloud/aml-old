@@ -13,9 +13,9 @@ type ObjectReference struct {
 	Position ast.Position
 	Scope    *Scope
 	Fields   []*ast.Field
+	Values   map[string]Value
 
 	fields         []*FieldReference
-	values         map[string]Value
 	keyOrder       []string
 	embedded       *bool
 	embeddedValue  Value
@@ -36,8 +36,8 @@ func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
 	}
 
 	keyNames := map[string]bool{}
-	for _, f := range o.FieldList {
-		if f.Hidden() {
+	for _, f := range o.fields {
+		if f.Field.Let {
 			continue
 		}
 		keys, err := f.Keys(ctx)
@@ -89,22 +89,21 @@ func (o *ObjectReference) Call(ctx context.Context, args ...Value) (_ Value, err
 	}()
 	tick(ctx)
 
-	if o.object == nil {
-		return nil, fmt.Errorf("call not supported on merged object")
-	}
-
 	f := &ObjectReference{
 		Position: o.Position,
 		Scope:    o.Scope,
-		object:   o.object,
-		values: map[string]Value{
+		Fields:   o.Fields,
+		Values: map[string]Value{
 			"args": &Array{
 				Position: o.Position,
 				values:   args,
 			},
 		},
 	}
-	ret, _, err := f.Lookup(ctx, "return")
+	ret, ok, err := f.Lookup(ctx, "return")
+	if !ok {
+		return nil, fmt.Errorf("invalid function missing return key")
+	}
 	return ret, err
 }
 
@@ -115,17 +114,17 @@ func (o *ObjectReference) isEmbedded() (bool, error) {
 
 	o.process()
 
-	if len(o.FieldList) == 0 {
+	if len(o.fields) == 0 {
 		return false, nil
 	}
 
-	embedded, err := o.FieldList[0].Embedded()
+	embedded, err := o.fields[0].Embedded()
 	if err != nil {
 		return false, err
 	}
 
-	for i := 1; i < len(o.FieldList); i++ {
-		newEmbedded, err := o.FieldList[i].Embedded()
+	for i := 1; i < len(o.fields); i++ {
+		newEmbedded, err := o.fields[i].Embedded()
 		if err != nil {
 			return false, err
 		}
@@ -165,7 +164,7 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 
 	o.process()
 
-	if v, ok := o.values[key]; ok {
+	if v, ok := o.Values[key]; ok {
 		return v, true, nil
 	}
 
@@ -182,7 +181,7 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 		}
 		values = append(values, ValuePosition{
 			Value:    v,
-			Position: f.Position(),
+			Position: f.Field.Position,
 		})
 	}
 
@@ -195,10 +194,10 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 		return nil, false, err
 	}
 
-	if o.values == nil {
-		o.values = map[string]Value{}
+	if o.Values == nil {
+		o.Values = map[string]Value{}
 	}
-	o.values[key] = v
+	o.Values[key] = v
 	return v, true, nil
 }
 
@@ -256,7 +255,7 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 
 	data := map[string]interface{}{}
 
-	values, err := o.Values(ctx)
+	values, err := o.getValues(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +270,7 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 	return data, nil
 }
 
-func (o *ObjectReference) Values(ctx context.Context) (_ []Local, err error) {
+func (o *ObjectReference) getValues(ctx context.Context) (_ []Local, err error) {
 	defer func() {
 		err = wrapErr(o.Position, err)
 	}()

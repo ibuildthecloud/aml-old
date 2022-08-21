@@ -32,8 +32,8 @@ func (e *ErrInvalidCondition) Unwrap() error {
 }
 
 func wrapErr(pos ast.Position, err error) error {
-	if err == nil {
-		return nil
+	if err == nil || pos.Offset == 0 {
+		return err
 	}
 	return &ErrPositionWrapped{
 		Pos: pos,

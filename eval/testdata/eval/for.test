@@ -25,6 +25,6 @@ reference: loop[outer-5] & { v: "override" }
     "reference": {
         "count": 5,
         "v": "override",
-        "val": "orange"
+        "val": "override"
     }
 }

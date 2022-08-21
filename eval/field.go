@@ -17,6 +17,7 @@ type FieldReference struct {
 
 	values    map[string]Value
 	misses    map[string]bool
+	noMatch   map[string]bool
 	condition *bool
 	body      Value
 	key       *string
@@ -77,22 +78,35 @@ func (f *FieldReference) checkCondition(ctx context.Context) (_ bool, err error)
 	return b, nil
 }
 
-func (f *FieldReference) resolveKey(ctx context.Context) (string, error) {
+func (f *FieldReference) resolveKey(ctx context.Context, key string) (string, bool, error) {
 	if f.key != nil {
-		return *f.key, nil
+		return *f.key, true, nil
+	}
+
+	// an empty key means we don't know what we are currently looking for
+	if f.resolving && key != "" {
+		if f.noMatch == nil {
+			f.noMatch = map[string]bool{}
+		}
+		f.noMatch[key] = true
+		return "", false, nil
 	}
 
 	if err := f.lock(); err != nil {
-		return "", err
+		return "", false, err
 	}
 	defer f.unlock()
 
 	s, err := EvaluateString(ctx, f.Scope, f.Field.Key.Name)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
-	return s, nil
+	if f.noMatch[s] {
+		return "", false, fmt.Errorf("cycle detected for key evaluated to %s", s)
+	}
+
+	return s, true, nil
 }
 
 func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value, bool, error) {
@@ -125,9 +139,9 @@ func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error)
 		}
 	}
 
-	s, err := f.resolveKey(ctx)
-	if err != nil {
-		return false, err
+	s, ok, err := f.resolveKey(ctx, key)
+	if err != nil || !ok {
+		return ok, err
 	}
 
 	if f.Field.Key.Match {
@@ -299,6 +313,6 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 		return nil, nil
 	}
 
-	s, err := f.resolveKey(ctx)
+	s, _, err := f.resolveKey(ctx, "")
 	return []string{s}, err
 }
