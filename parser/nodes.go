@@ -62,27 +62,13 @@ func toExpression(sel, ops interface{}, c *current) (interface{}, error) {
 	}, nil
 }
 
-func toCall(head, tail interface{}, c *current) (interface{}, error) {
-	lookup := &ast.Lookup{
+func toCall(val interface{}, c *current) (interface{}, error) {
+	return &ast.Lookup{
 		Call: &ast.Call{
 			Position: toPos(c),
+			Args:     val.(*ast.Value),
 		},
-	}
-
-	if head == nil {
-		return lookup, nil
-	}
-
-	lookup.Call.Args = append(lookup.Call.Args, head.(*ast.Value))
-
-	for _, item := range toSlice(tail) {
-		itemSlice := toSlice(item)
-		if len(itemSlice) == 2 {
-			lookup.Call.Args = append(lookup.Call.Args, itemSlice[1].(*ast.Value))
-		}
-	}
-
-	return lookup, nil
+	}, nil
 }
 
 func toDotLookup(literal interface{}, c *current) (interface{}, error) {
@@ -248,7 +234,13 @@ func toString(chars interface{}, c *current) (interface{}, error) {
 	buf := &strings.Builder{}
 	for _, v := range toSlice(chars) {
 		s := toSlice(v)
-		switch v := s[1].(type) {
+		i := 1
+		if len(s) == 2 {
+			ret.Multiline = true
+		} else {
+			i = 2
+		}
+		switch v := s[i].(type) {
 		case string:
 			buf.WriteString(v)
 		case *ast.Value:

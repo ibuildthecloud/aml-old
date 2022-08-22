@@ -8,6 +8,8 @@ import (
 	"github.com/acorn-io/aml/parser/ast"
 )
 
+var _ ArrayValue = (*Array)(nil)
+
 type Array struct {
 	Position ast.Position
 	Scope    *Scope
@@ -20,8 +22,11 @@ func (a *Array) Type(ctx context.Context) (Type, error) {
 	return TypeArray, nil
 }
 
-func (a *Array) Call(ctx context.Context, args ...Value) (_ Value, err error) {
-	return nil, fmt.Errorf("can not call on an array")
+func (a *Array) Empty(ctx context.Context) (bool, error) {
+	if err := a.process(ctx); err != nil {
+		return false, err
+	}
+	return len(a.values) == 0, nil
 }
 
 func (a *Array) Iterator(ctx context.Context) (Iterator, error) {

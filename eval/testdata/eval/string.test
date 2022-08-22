@@ -1,5 +1,4 @@
-outer: "hi
-bye"
+outer: "hi\nbye"
 inner: """
 bye
 """

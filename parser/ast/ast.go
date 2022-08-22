@@ -54,8 +54,9 @@ func (p Position) IsSet() bool {
 }
 
 type String struct {
-	Position Position
-	Parts    []StringPart
+	Position  Position
+	Parts     []StringPart
+	Multiline bool
 }
 
 type StringPart struct {
@@ -114,9 +115,8 @@ type Lookup struct {
 }
 
 type Call struct {
-	Position  Position
-	NamedArgs *Object
-	Args      *Array
+	Position Position
+	Args     *Value
 }
 
 type Selector struct {

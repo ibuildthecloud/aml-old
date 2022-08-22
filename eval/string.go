@@ -76,7 +76,10 @@ func EvaluateString(ctx context.Context, scope *Scope, s *ast.String) (_ string,
 		}
 	}
 
-	return trimIndent(buf.String()), nil
+	if s.Multiline {
+		return trimIndent(buf.String()), nil
+	}
+	return buf.String(), nil
 }
 
 func QuickMatch(s *ast.String, val string) ItCouldBe {

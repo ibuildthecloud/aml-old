@@ -141,15 +141,12 @@ func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base
 				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index"))
 			}
 		} else if l.Call != nil {
-			var args []Value
-			for _, arg := range l.Call.Args {
-				v, err := ToValue(ctx, scope, arg)
-				if err != nil {
-					return nil, wrapErr(l.Call.Position, fmt.Errorf("failed to evaluate args: %w", err))
-				}
-				args = append(args, v)
+			callable, ok := base.(Callable)
+			if !ok {
+				t, _ := base.Type(ctx)
+				return nil, wrapErr(l.Call.Position, fmt.Errorf("target of type %s is not callable", t))
 			}
-			base, err = base.Call(ctx, args...)
+			base, err = callable.Call(ctx, scope, l.Call.Args)
 			if err != nil {
 				return nil, wrapErr(l.Call.Position, fmt.Errorf("failed to call: %w", err))
 			}

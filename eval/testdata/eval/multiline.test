@@ -1,3 +1,4 @@
+ns: "\n  hi\n  bye\n"
 s: """
   hi
   bye
@@ -7,6 +8,7 @@ s2: """hi
   """
 ---
 {
+    "ns": "\n  hi\n  bye\n",
     "s": "hi\nbye\n",
     "s2": "hi\n  bye\n  "
 }

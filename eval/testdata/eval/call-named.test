@@ -1,0 +1,25 @@
+outer: inner: {
+    _args: {
+        foo: 0
+        bar: 1
+    }
+    let _return = [_args.foo, _args.bar]
+}
+
+outer: result: outer.inner(foo: 1
+ bar: 2)
+---
+{
+    "outer": {
+        "inner": {
+            "_args": {
+                "bar": 1,
+                "foo": 0
+            }
+        },
+        "result": [
+            1,
+            2
+        ]
+    }
+}

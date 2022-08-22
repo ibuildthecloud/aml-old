@@ -50,6 +50,16 @@ func merge(ctx context.Context, _ *Scope, pos ast.Position, _ string, left, righ
 		return nil, err
 	}
 
+	if lvt == TypeObject && rvt == TypeArray {
+		empty, err := right.(ArrayValue).Empty(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return left, nil
+		}
+	}
+
 	if lvt != rvt {
 		return nil, fmt.Errorf("can not merge incompatible types %s and %s", lvt, rvt)
 	}

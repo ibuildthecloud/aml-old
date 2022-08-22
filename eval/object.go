@@ -7,7 +7,14 @@ import (
 	"github.com/acorn-io/aml/parser/ast"
 )
 
-var _ ObjectValue = (*ObjectReference)(nil)
+const (
+	ReturnName = "_return"
+)
+
+var (
+	_        ObjectValue = (*ObjectReference)(nil)
+	ArgsName             = "_args"
+)
 
 type ObjectReference struct {
 	Position ast.Position
@@ -83,26 +90,44 @@ func (o *ObjectReference) Type(ctx context.Context) (Type, error) {
 	return TypeObject, nil
 }
 
-func (o *ObjectReference) Call(ctx context.Context, args ...Value) (_ Value, err error) {
+func (o *ObjectReference) Call(ctx context.Context, scope *Scope, args *ast.Value) (_ Value, err error) {
 	defer func() {
 		err = wrapErr(o.Position, err)
 	}()
 	tick(ctx)
 
-	f := &ObjectReference{
+	call := &ObjectReference{
 		Position: o.Position,
-		Scope:    o.Scope,
-		Fields:   o.Fields,
-		Values: map[string]Value{
-			"args": &Array{
-				Position: o.Position,
-				values:   args,
+		Scope:    scope,
+		Fields: []*ast.Field{
+			{
+				Position: args.Position,
+				Key: ast.Key{
+					Position: args.Position,
+					Name: &ast.String{
+						Position: args.Position,
+						Parts: []ast.StringPart{
+							{
+								String: &ArgsName,
+							},
+						},
+					},
+				},
+				Value: args,
 			},
 		},
 	}
-	ret, ok, err := f.Lookup(ctx, "return")
+
+	obj, err := o.Merge(ctx, call)
+	if err != nil {
+		return nil, fmt.Errorf("error in call merge: %w", err)
+	}
+	ret, ok, err := obj.Lookup(ctx, ReturnName)
 	if !ok {
 		return nil, fmt.Errorf("invalid function missing return key")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("err in call return: %w", err)
 	}
 	return ret, err
 }

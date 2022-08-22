@@ -1,22 +1,12 @@
 outer: inner: {
-    args: [0, 0]
-    return: [args[0], args[1]]
+    let _return = [_args[0], _args[1]]
 }
 
 outer: result: outer.inner(1, 2)
 ---
 {
     "outer": {
-        "inner": {
-            "args": [
-                0,
-                0
-            ],
-            "return": [
-                0,
-                0
-            ]
-        },
+        "inner": {},
         "result": [
             1,
             2

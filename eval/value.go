@@ -27,10 +27,13 @@ const (
 
 type Value interface {
 	Type(ctx context.Context) (Type, error)
-	Call(ctx context.Context, args ...Value) (Value, error)
 	Lookup(ctx context.Context, key string) (Value, bool, error)
 	Index(ctx context.Context, val Value) (Value, bool, error)
 	Interface(ctx context.Context) (interface{}, error)
+}
+
+type Callable interface {
+	Call(ctx context.Context, scope *Scope, args *ast.Value) (Value, error)
 }
 
 // Casting an object to this interface is not enough to determine a value
@@ -49,6 +52,7 @@ type Iterator interface {
 
 type ArrayValue interface {
 	Iterator(ctx context.Context) (Iterator, error)
+	Empty(ctx context.Context) (bool, error)
 }
 
 type Locals struct {
@@ -92,10 +96,6 @@ func (l *Locals) Interface(ctx context.Context) (interface{}, error) {
 	return nil, fmt.Errorf("interface unsupported")
 }
 
-func (l *Locals) Call(ctx context.Context, args ...Value) (_ Value, err error) {
-	return nil, fmt.Errorf("call unsupported")
-}
-
 type Local struct {
 	Key   string
 	Value Value
@@ -108,10 +108,6 @@ type Scalar struct {
 	Bool     *bool
 	String   *string
 	Number   *ast.Number
-}
-
-func (s *Scalar) Call(ctx context.Context, args ...Value) (_ Value, err error) {
-	return nil, fmt.Errorf("can not call on a scalar")
 }
 
 func (s *Scalar) Type(ctx context.Context) (Type, error) {
