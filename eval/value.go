@@ -29,7 +29,7 @@ type Value interface {
 	Type(ctx context.Context) (Type, error)
 	Lookup(ctx context.Context, key string) (Value, bool, error)
 	Index(ctx context.Context, val Value) (Value, bool, error)
-	Interface(ctx context.Context) (interface{}, error)
+	Interface(ctx context.Context) (any, error)
 }
 
 type Callable interface {
@@ -60,14 +60,20 @@ type Locals struct {
 	order  []string
 }
 
-func (l *Locals) Add(v Local) {
+func (l *Locals) Add(key string, v Value) {
+	if key == "" {
+		return
+	}
 	if l.values == nil {
 		l.values = map[string]Local{}
 	}
-	if _, ok := l.values[v.Key]; !ok {
-		l.order = append(l.order, v.Key)
+	if _, ok := l.values[key]; !ok {
+		l.order = append(l.order, key)
 	}
-	l.values[v.Key] = v
+	l.values[key] = Local{
+		Key:   key,
+		Value: v,
+	}
 }
 
 func (l *Locals) Get(key string) (Local, bool) {

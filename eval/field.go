@@ -15,14 +15,14 @@ type FieldReference struct {
 	Field     *ast.Field
 	resolving bool
 
-	values    map[string]Value
-	misses    map[string]bool
-	noMatch   map[string]bool
-	condition *bool
-	body      Value
-	key       *string
-	keys      []string
-	embedded  *bool
+	values        map[string]Value
+	misses        map[string]bool
+	noMatch       map[string]bool
+	condition     *bool
+	body          Value
+	key           *string
+	keys          []string
+	embeddedValue Value
 }
 
 func (f *FieldReference) lock() (err error) {
@@ -40,7 +40,7 @@ func (f *FieldReference) unlock() {
 	f.resolving = false
 }
 
-func (f *FieldReference) checkCondition(ctx context.Context) (_ bool, err error) {
+func (f *FieldReference) checkCondition(ctx context.Context, key string) (_ bool, err error) {
 	defer func() {
 		err = wrapErr(f.Field.Position, err)
 	}()
@@ -51,6 +51,11 @@ func (f *FieldReference) checkCondition(ctx context.Context) (_ bool, err error)
 
 	if f.condition != nil {
 		return *f.condition, nil
+	}
+
+	if f.resolving {
+		f.setNoMatch(key)
+		return false, nil
 	}
 
 	if err := f.lock(); err != nil {
@@ -114,39 +119,70 @@ func (f *FieldReference) setNoMatch(key string) {
 	f.noMatch[key] = true
 }
 
-func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value, bool, error) {
-	if f.Field.Embedded {
-		if f.resolving {
-			f.setNoMatch(key)
-			return nil, false, nil
-		}
+func (f *FieldReference) lookupKeyInValue(ctx context.Context, key string, v Value) (Value, bool, error) {
+	defer func() {
+		f.noMatch = nil
+	}()
 
-		if err := f.lock(); err != nil {
-			return nil, false, err
+	if key == EmbeddedKey {
+		if f.noMatch[EmbeddedKey] {
+			return nil, false, fmt.Errorf("cycle detected resolving embedded object")
 		}
-		defer f.unlock()
+		return v, true, nil
+	}
 
-		v, err := ToValue(ctx, f.Scope, f.Field.Value)
+	for noMatch := range f.noMatch {
+		_, ok, err := v.Lookup(ctx, key)
 		if err != nil {
 			return nil, false, err
 		}
-		if key == EmbeddedKey {
-			if f.noMatch[EmbeddedKey] {
-				return nil, false, fmt.Errorf("cycle detected resolving embedded object")
-			}
-			return v, true, err
+		if ok {
+			return nil, false, fmt.Errorf("cycle detected resolving key: %s", noMatch)
 		}
-		for noMatch := range f.noMatch {
-			_, ok, err := v.Lookup(ctx, key)
-			if err != nil {
-				return nil, false, err
-			}
-			if ok {
-				return nil, false, fmt.Errorf("cycle detected resolving key: %s", noMatch)
-			}
-		}
+	}
+
+	return v.Lookup(ctx, key)
+}
+
+func (f *FieldReference) lookupEmbeddedKey(ctx context.Context, key string) (Value, bool, error) {
+	if f.resolving {
+		f.setNoMatch(key)
+		return nil, false, nil
+	}
+	defer func() {
 		f.noMatch = nil
-		return v.Lookup(ctx, key)
+	}()
+
+	v, err := f.getEmbeddedValue(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return f.lookupKeyInValue(ctx, key, v)
+}
+
+func (f *FieldReference) getEmbeddedValue(ctx context.Context) (Value, error) {
+	if f.embeddedValue != nil {
+		return f.embeddedValue, nil
+	}
+
+	if err := f.lock(); err != nil {
+		return nil, err
+	}
+	defer f.unlock()
+
+	v, err := ToValue(ctx, f.Scope, f.Field.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	f.embeddedValue = v
+	return v, nil
+}
+
+func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value, bool, error) {
+	if f.Field.Embedded {
+		return f.lookupEmbeddedKey(ctx, key)
 	}
 
 	if ok, err := f.matchKey(ctx, key); err != nil {
@@ -194,10 +230,18 @@ func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error)
 }
 
 func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
+	if f.resolving {
+		return ToObject(f.Scope.Disallow(f.Field.For.IndexVar, f.Field.For.ValueVar), f.Field.For.Object), nil
+	}
+
 	if err := f.lock(); err != nil {
 		return nil, err
 	}
 	defer f.unlock()
+
+	if f.body != nil {
+		return f.body, nil
+	}
 
 	list, err := EvaluateList(ctx, f.Scope, f.Field.For)
 	if err != nil {
@@ -209,8 +253,11 @@ func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
 		return nil, err
 	}
 
-	// Empty node
-	var result Value = EmptyObjectReference(f.Field.For.Position, f.Scope)
+	result := &ObjectReference{
+		Position: f.Field.For.Object.Position,
+		Scope:    f.Scope,
+	}
+
 	for {
 		n, cont, err := iter.Next()
 		if err != nil {
@@ -219,79 +266,57 @@ func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
 		if !cont {
 			break
 		}
-		result, err = Merge(ctx, f.Field.Position, result, n)
-		if err != nil {
-			return nil, err
-		}
+		result.fields = append(result.fields, &FieldReference{
+			Scope: f.Scope.Push(result),
+			Field: &ast.Field{
+				Position: f.Field.For.Object.Position,
+				Embedded: true,
+			},
+			embeddedValue: n,
+		})
 	}
 
+	f.body = result
 	return result, nil
 }
 
-func (f *FieldReference) getBody(ctx context.Context) (Value, error) {
-	if f.body != nil {
+func (f *FieldReference) getBody(ctx context.Context, key string) (Value, error) {
+	if f.Field.If != nil {
+		if f.body != nil {
+			return f.body, nil
+		}
+		f.body = ToObject(f.Scope, f.Field.If.Object)
 		return f.body, nil
 	}
-	if f.Field.If != nil {
-		f.body = ToObject(f.Scope, f.Field.If.Object)
-	} else if f.Field.For != nil {
-		body, err := f.forBody(ctx)
-		if err != nil {
-			return nil, err
-		}
-		f.body = body
-	}
-	return f.body, nil
+
+	return f.forBody(ctx)
 }
 
 func (f *FieldReference) processIfFor(ctx context.Context, key string) (Value, bool, error) {
-	if ok, err := f.checkCondition(ctx); err != nil {
+	if ok, err := f.checkCondition(ctx, key); err != nil {
 		return nil, false, err
 	} else if !ok {
 		return nil, false, nil
 	}
-	body, err := f.getBody(ctx)
+	body, err := f.getBody(ctx, key)
 	if err != nil {
 		return nil, false, err
 	}
-	if key == EmbeddedKey {
-		return body, true, nil
-	}
-	return body.Lookup(ctx, key)
+	return f.lookupKeyInValue(ctx, key, body)
 }
 
-func isEmbeddedFields(fields []*ast.Field) (ok bool, err error) {
-	if len(fields) == 0 {
-		return false, nil
+func (f *FieldReference) cacheValue(key string, v Value) {
+	if f.values == nil {
+		f.values = map[string]Value{}
 	}
-	ret := fields[0].Embedded
-	for i := 1; i < len(fields); i++ {
-		if fields[i].Embedded != ret {
-			return false, fmt.Errorf("can not mix embedded and non-embedded object fields")
-		}
-	}
-	return ret, nil
+	f.values[key] = v
 }
 
-func isEmbedded(field *ast.Field) (ok bool, err error) {
-	if field.If != nil {
-		return isEmbeddedFields(field.If.Object.Fields)
-	} else if field.For != nil {
-		return isEmbeddedFields(field.For.Object.Fields)
+func (f *FieldReference) cacheMiss(key string) {
+	if f.misses == nil {
+		f.misses = map[string]bool{}
 	}
-	return field.Embedded, nil
-}
-
-func (f *FieldReference) IsEmbedded() (ok bool, err error) {
-	if f.embedded != nil {
-		return *f.embedded, nil
-	}
-	b, err := isEmbedded(f.Field)
-	if err != nil {
-		return false, err
-	}
-	f.embedded = &b
-	return b, nil
+	f.misses[key] = true
 }
 
 func (f *FieldReference) Value(ctx context.Context, key string) (v Value, ok bool, err error) {
@@ -311,16 +336,10 @@ func (f *FieldReference) Value(ctx context.Context, key string) (v Value, ok boo
 	if err != nil {
 		return nil, false, err
 	} else if !ok {
-		if f.misses == nil {
-			f.misses = map[string]bool{}
-		}
-		f.misses[key] = true
+		f.cacheMiss(key)
 		return nil, false, nil
 	}
-	if f.values == nil {
-		f.values = map[string]Value{}
-	}
-	f.values[key] = v
+	f.cacheValue(key, v)
 	return v, true, nil
 }
 
@@ -329,15 +348,23 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 		return f.keys, nil
 	}
 
-	if ok, err := f.IsEmbedded(); err != nil {
-		return nil, err
-	} else if ok {
-		f.keys = []string{}
-		return nil, nil
+	if f.Field.Embedded {
+		embedded, err := f.getEmbeddedValue(ctx)
+		if err != nil {
+			return nil, err
+		}
+		embeddedType, err := embedded.Type(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if embeddedType == TypeObject {
+			return embedded.(ObjectValue).Keys(ctx)
+		}
+		return []string{EmbeddedKey}, nil
 	}
 
 	if f.Field.Key.Name == nil {
-		b, err := f.getBody(ctx)
+		b, err := f.getBody(ctx, "")
 		if err != nil {
 			return nil, err
 		}

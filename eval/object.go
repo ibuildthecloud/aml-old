@@ -20,18 +20,10 @@ type ObjectReference struct {
 	Position ast.Position
 	Scope    *Scope
 	Fields   []*ast.Field
-	Values   map[string]Value
 
+	values   map[string]Value
 	fields   []*FieldReference
 	keyOrder []string
-	embedded *bool
-}
-
-func EmptyObjectReference(pos ast.Position, scope *Scope) *ObjectReference {
-	return &ObjectReference{
-		Position: pos,
-		Scope:    scope,
-	}
 }
 
 func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
@@ -62,22 +54,25 @@ func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
 	return o.keyOrder, nil
 }
 
-func (o *ObjectReference) getEmbeddedObject(ctx context.Context) (Value, error) {
-	v, _, err := o.Lookup(ctx, EmbeddedKey)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
+func (o *ObjectReference) Type(ctx context.Context) (_ Type, err error) {
+	defer func() {
+		err = wrapErr(o.Position, err)
+	}()
 
-func (o *ObjectReference) Type(ctx context.Context) (Type, error) {
-	if ok, err := o.isEmbedded(); err != nil {
+	keys, err := o.Keys(ctx)
+	if err != nil {
 		return TypeObject, err
-	} else if ok {
-		if o, err := o.getEmbeddedObject(ctx); err != nil {
-			return TypeObject, err
-		} else {
-			return o.Type(ctx)
+	}
+	for _, key := range keys {
+		if key == EmbeddedKey {
+			v, ok, err := o.Lookup(ctx, key)
+			if err != nil {
+				return TypeObject, err
+			}
+			if !ok {
+				return TypeObject, fmt.Errorf("failed to determine type of object")
+			}
+			return v.Type(ctx)
 		}
 	}
 	return TypeObject, nil
@@ -125,36 +120,6 @@ func (o *ObjectReference) Call(ctx context.Context, scope *Scope, args *ast.Valu
 	return ret, err
 }
 
-func (o *ObjectReference) isEmbedded() (bool, error) {
-	if o.embedded != nil {
-		return *o.embedded, nil
-	}
-
-	o.process()
-
-	if len(o.fields) == 0 {
-		return false, nil
-	}
-
-	embedded, err := o.fields[0].IsEmbedded()
-	if err != nil {
-		return false, err
-	}
-
-	for i := 1; i < len(o.fields); i++ {
-		newEmbedded, err := o.fields[i].IsEmbedded()
-		if err != nil {
-			return false, err
-		}
-		if newEmbedded != embedded {
-			return false, fmt.Errorf("can not mix embedded objects with fields")
-		}
-	}
-
-	o.embedded = &embedded
-	return embedded, nil
-}
-
 func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bool, err error) {
 	defer func() {
 		err = wrapErr(o.Position, err)
@@ -163,7 +128,7 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 
 	o.process()
 
-	if v, ok := o.Values[key]; ok {
+	if v, ok := o.values[key]; ok {
 		return v, true, nil
 	}
 
@@ -193,10 +158,10 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 		return nil, false, err
 	}
 
-	if o.Values == nil {
-		o.Values = map[string]Value{}
+	if o.values == nil {
+		o.values = map[string]Value{}
 	}
-	o.Values[key] = v
+	o.values[key] = v
 	return v, true, nil
 }
 
@@ -205,30 +170,12 @@ func (o *ObjectReference) process() {
 		return
 	}
 
-	var (
-		parent = &ObjectReference{
-			Position: o.Position,
-			Scope:    o.Scope,
-		}
-		fieldList []*FieldReference
-	)
-
+	var fieldList []*FieldReference
 	for _, field := range o.Fields {
-		if field.For != nil || field.If != nil {
-			fieldList = append(fieldList, &FieldReference{
-				Field: field,
-				Scope: o.Scope.Push(parent),
-			})
-		} else {
-			parent.fields = append(parent.fields, &FieldReference{
-				Field: field,
-				Scope: o.Scope.Push(parent),
-			})
-			fieldList = append(fieldList, &FieldReference{
-				Field: field,
-				Scope: o.Scope.Push(o),
-			})
-		}
+		fieldList = append(fieldList, &FieldReference{
+			Field: field,
+			Scope: o.Scope.Push(o),
+		})
 	}
 
 	o.fields = fieldList
@@ -239,16 +186,6 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 		err = wrapErr(o.Position, err)
 	}()
 	tick(ctx)
-
-	if ok, err := o.isEmbedded(); err != nil {
-		return nil, err
-	} else if ok {
-		if o, err := o.getEmbeddedObject(ctx); err != nil {
-			return nil, err
-		} else {
-			return o.Interface(ctx)
-		}
-	}
 
 	o.process()
 
@@ -264,6 +201,13 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if v, ok := data[EmbeddedKey]; ok {
+		if len(data) > 1 {
+			return nil, fmt.Errorf("object evaluated to mixture of object and embedded value")
+		}
+		return v, nil
 	}
 
 	return data, nil
@@ -323,16 +267,6 @@ func (o *ObjectReference) Index(ctx context.Context, val Value) (Value, bool, er
 }
 
 func (o *ObjectReference) Merge(ctx context.Context, val ObjectValue) (Value, error) {
-	if ok, err := o.isEmbedded(); err != nil {
-		return nil, err
-	} else if ok {
-		if o, err := o.getEmbeddedObject(ctx); err != nil {
-			return nil, err
-		} else {
-			return o.(ObjectValue).Merge(ctx, val)
-		}
-	}
-
 	o.process()
 
 	rightPosition, err := val.GetPosition(ctx)

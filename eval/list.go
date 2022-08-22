@@ -46,22 +46,12 @@ func EvaluateList(ctx context.Context, scope *Scope, expr *ast.For) (_ *Array, e
 		index := ast.Number(strconv.Itoa(i))
 
 		locals := &Locals{}
-		if expr.IndexVar != "" {
-			locals.Add(Local{
-				Key: expr.IndexVar,
-				Value: &Scalar{
-					Position: expr.Position,
-					Scope:    scope,
-					Number:   &index,
-				},
-			})
-		}
-		if expr.IndexVar != "" {
-			locals.Add(Local{
-				Key:   expr.ValueVar,
-				Value: v,
-			})
-		}
+		locals.Add(expr.IndexVar, &Scalar{
+			Position: expr.Position,
+			Scope:    scope,
+			Number:   &index,
+		})
+		locals.Add(expr.ValueVar, v)
 
 		val = append(val, ToObject(scope.Push(locals), expr.Object))
 	}

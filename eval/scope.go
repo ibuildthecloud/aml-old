@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/acorn-io/aml/parser/ast"
 )
@@ -18,6 +19,22 @@ type Scope struct {
 	Parent          *Scope
 	SecondaryParent *Scope
 	Value           Value
+	cycleVars       map[string]bool
+}
+
+func (s *Scope) Disallow(keys ...string) *Scope {
+	cycleVars := map[string]bool{}
+	for _, key := range keys {
+		if key != "" {
+			cycleVars[key] = true
+		}
+	}
+	return &Scope{
+		Parent:          s.Parent,
+		SecondaryParent: s.SecondaryParent,
+		Value:           s.Value,
+		cycleVars:       cycleVars,
+	}
 }
 
 func (s *Scope) Merge(newParent *Scope) *Scope {
@@ -34,6 +51,11 @@ func (s *Scope) Lookup(ctx context.Context, key string) (Value, bool, error) {
 		err                                error
 	)
 	tick(ctx)
+
+	if s.cycleVars[key] {
+		return nil, false, fmt.Errorf("cycle looking up key %s", key)
+	}
+
 	if s.Value != nil {
 		val, ok, err = s.Value.Lookup(ctx, key)
 		if err != nil {
