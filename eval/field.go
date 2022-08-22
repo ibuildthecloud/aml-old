@@ -85,10 +85,7 @@ func (f *FieldReference) resolveKey(ctx context.Context, key string) (string, bo
 
 	// an empty key means we don't know what we are currently looking for
 	if f.resolving && key != "" {
-		if f.noMatch == nil {
-			f.noMatch = map[string]bool{}
-		}
-		f.noMatch[key] = true
+		f.setNoMatch(key)
 		return "", false, nil
 	}
 
@@ -105,14 +102,51 @@ func (f *FieldReference) resolveKey(ctx context.Context, key string) (string, bo
 	if f.noMatch[s] {
 		return "", false, fmt.Errorf("cycle detected for key evaluated to %s", s)
 	}
+	f.noMatch = nil
 
 	return s, true, nil
 }
 
+func (f *FieldReference) setNoMatch(key string) {
+	if f.noMatch == nil {
+		f.noMatch = map[string]bool{}
+	}
+	f.noMatch[key] = true
+}
+
 func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value, bool, error) {
-	if f.Field.Embedded && key == EmbeddedKey {
+	if f.Field.Embedded {
+		if f.resolving {
+			f.setNoMatch(key)
+			return nil, false, nil
+		}
+
+		if err := f.lock(); err != nil {
+			return nil, false, err
+		}
+		defer f.unlock()
+
 		v, err := ToValue(ctx, f.Scope, f.Field.Value)
-		return v, true, err
+		if err != nil {
+			return nil, false, err
+		}
+		if key == EmbeddedKey {
+			if f.noMatch[EmbeddedKey] {
+				return nil, false, fmt.Errorf("cycle detected resolving embedded object")
+			}
+			return v, true, err
+		}
+		for noMatch := range f.noMatch {
+			_, ok, err := v.Lookup(ctx, key)
+			if err != nil {
+				return nil, false, err
+			}
+			if ok {
+				return nil, false, fmt.Errorf("cycle detected resolving key: %s", noMatch)
+			}
+		}
+		f.noMatch = nil
+		return v.Lookup(ctx, key)
 	}
 
 	if ok, err := f.matchKey(ctx, key); err != nil {
@@ -131,6 +165,10 @@ func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value
 }
 
 func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error) {
+	if f.Field.Key.Name == nil {
+		return false, nil
+	}
+
 	if !f.Field.Key.Match {
 		if ret := QuickMatch(f.Field.Key.Name, key); ret == True {
 			return true, nil
@@ -244,7 +282,7 @@ func isEmbedded(field *ast.Field) (ok bool, err error) {
 	return field.Embedded, nil
 }
 
-func (f *FieldReference) Embedded() (ok bool, err error) {
+func (f *FieldReference) IsEmbedded() (ok bool, err error) {
 	if f.embedded != nil {
 		return *f.embedded, nil
 	}
@@ -291,7 +329,7 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 		return f.keys, nil
 	}
 
-	if ok, err := f.Embedded(); err != nil {
+	if ok, err := f.IsEmbedded(); err != nil {
 		return nil, err
 	} else if ok {
 		f.keys = []string{}

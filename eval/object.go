@@ -22,11 +22,9 @@ type ObjectReference struct {
 	Fields   []*ast.Field
 	Values   map[string]Value
 
-	fields         []*FieldReference
-	keyOrder       []string
-	embedded       *bool
-	embeddedValue  Value
-	embeddedLookup bool
+	fields   []*FieldReference
+	keyOrder []string
+	embedded *bool
 }
 
 func EmptyObjectReference(pos ast.Position, scope *Scope) *ObjectReference {
@@ -65,15 +63,10 @@ func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
 }
 
 func (o *ObjectReference) getEmbeddedObject(ctx context.Context) (Value, error) {
-	if o.embeddedValue != nil {
-		return o.embeddedValue, nil
-	}
-
 	v, _, err := o.Lookup(ctx, EmbeddedKey)
 	if err != nil {
 		return nil, err
 	}
-	o.embeddedValue = v
 	return v, nil
 }
 
@@ -143,13 +136,13 @@ func (o *ObjectReference) isEmbedded() (bool, error) {
 		return false, nil
 	}
 
-	embedded, err := o.fields[0].Embedded()
+	embedded, err := o.fields[0].IsEmbedded()
 	if err != nil {
 		return false, err
 	}
 
 	for i := 1; i < len(o.fields); i++ {
-		newEmbedded, err := o.fields[i].Embedded()
+		newEmbedded, err := o.fields[i].IsEmbedded()
 		if err != nil {
 			return false, err
 		}
@@ -167,25 +160,6 @@ func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bo
 		err = wrapErr(o.Position, err)
 	}()
 	tick(ctx)
-
-	if key != EmbeddedKey {
-		if ok, err := o.isEmbedded(); err != nil {
-			return nil, false, err
-		} else if ok {
-			if o.embeddedLookup {
-				return nil, false, nil
-			}
-			o.embeddedLookup = true
-			defer func() {
-				o.embeddedLookup = false
-			}()
-			if o, err := o.getEmbeddedObject(ctx); err != nil {
-				return nil, false, err
-			} else {
-				return o.Lookup(ctx, key)
-			}
-		}
-	}
 
 	o.process()
 
