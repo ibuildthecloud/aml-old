@@ -18,8 +18,8 @@ type FieldReference struct {
 	values        map[string]Value
 	misses        map[string]bool
 	noMatch       map[string]bool
-	condition     *bool
 	body          Value
+	condition     *bool
 	key           *string
 	keys          []string
 	embeddedValue Value
@@ -40,30 +40,16 @@ func (f *FieldReference) unlock() {
 	f.resolving = false
 }
 
-func (f *FieldReference) checkCondition(ctx context.Context, key string) (_ bool, err error) {
+func (f *FieldReference) checkCondition(ctx context.Context, ifExpr *ast.If) (_ bool, err error) {
 	defer func() {
 		err = wrapErr(f.Field.Position, err)
 	}()
 
-	if f.Field.If == nil || f.Field.If.Condition == nil {
+	if ifExpr.Condition == nil {
 		return true, nil
 	}
 
-	if f.condition != nil {
-		return *f.condition, nil
-	}
-
-	if f.resolving {
-		f.setNoMatch(key)
-		return false, nil
-	}
-
-	if err := f.lock(); err != nil {
-		return false, err
-	}
-	defer f.unlock()
-
-	v, err := EvaluateExpression(ctx, f.Scope, f.Field.If.Condition)
+	v, err := EvaluateExpression(ctx, f.Scope, ifExpr.Condition)
 	if err != nil {
 		return false, err
 	}
@@ -79,7 +65,6 @@ func (f *FieldReference) checkCondition(ctx context.Context, key string) (_ bool
 		return false, err
 	}
 	b := obj.(bool)
-	f.condition = &b
 	return b, nil
 }
 
@@ -132,7 +117,7 @@ func (f *FieldReference) lookupKeyInValue(ctx context.Context, key string, v Val
 	}
 
 	for noMatch := range f.noMatch {
-		_, ok, err := v.Lookup(ctx, key)
+		_, ok, err := v.Lookup(ctx, noMatch)
 		if err != nil {
 			return nil, false, err
 		}
@@ -230,6 +215,10 @@ func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error)
 }
 
 func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
+	if f.body != nil {
+		return f.body, nil
+	}
+
 	if f.resolving {
 		return ToObject(f.Scope.Disallow(f.Field.For.IndexVar, f.Field.For.ValueVar), f.Field.For.Object), nil
 	}
@@ -238,10 +227,6 @@ func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
 		return nil, err
 	}
 	defer f.unlock()
-
-	if f.body != nil {
-		return f.body, nil
-	}
 
 	list, err := EvaluateList(ctx, f.Scope, f.Field.For)
 	if err != nil {
@@ -280,27 +265,77 @@ func (f *FieldReference) forBody(ctx context.Context) (Value, error) {
 	return result, nil
 }
 
-func (f *FieldReference) getBody(ctx context.Context, key string) (Value, error) {
-	if f.Field.If != nil {
-		if f.body != nil {
-			return f.body, nil
-		}
-		f.body = ToObject(f.Scope, f.Field.If.Object)
-		return f.body, nil
+func (f *FieldReference) evalIfBody(ctx context.Context, ifExpr *ast.If) (Value, bool, error) {
+	ok, err := f.checkCondition(ctx, ifExpr)
+	if err != nil {
+		return nil, false, err
+	}
+	if ok {
+		return ToObject(f.Scope, ifExpr.Object), true, err
+	}
+	if ifExpr.Else == nil {
+		return nil, false, nil
+	}
+	return f.evalIfBody(ctx, ifExpr.Else)
+}
+
+func (f *FieldReference) quickIfNoKey(ctx context.Context, key string, ifExpr *ast.If) bool {
+	o := ToObject(f.Scope, ifExpr.Object)
+	_, ok, err := o.Lookup(ctx, key)
+	if err != nil || ok {
+		return false
+	}
+	if ifExpr.Else != nil {
+		return f.quickIfNoKey(ctx, key, ifExpr.Else)
+	}
+	return true
+}
+
+func (f *FieldReference) ifBody(ctx context.Context, key string) (Value, bool, error) {
+	if f.body != nil || f.condition != nil {
+		return f.body, *f.condition, nil
 	}
 
-	return f.forBody(ctx)
+	if f.resolving {
+		f.setNoMatch(key)
+		return nil, false, nil
+	}
+
+	if err := f.lock(); err != nil {
+		return nil, false, err
+	}
+	defer f.unlock()
+
+	if f.quickIfNoKey(ctx, key, f.Field.If) {
+		return nil, false, nil
+	}
+
+	body, cond, err := f.evalIfBody(ctx, f.Field.If)
+	if err != nil {
+		return nil, false, err
+	}
+
+	f.body = body
+	f.condition = &cond
+	return body, cond, nil
+}
+
+func (f *FieldReference) getBody(ctx context.Context, key string) (Value, bool, error) {
+	if f.Field.If != nil {
+		return f.ifBody(ctx, key)
+	}
+
+	body, err := f.forBody(ctx)
+	return body, true, err
 }
 
 func (f *FieldReference) processIfFor(ctx context.Context, key string) (Value, bool, error) {
-	if ok, err := f.checkCondition(ctx, key); err != nil {
-		return nil, false, err
-	} else if !ok {
-		return nil, false, nil
-	}
-	body, err := f.getBody(ctx, key)
+	body, ok, err := f.getBody(ctx, key)
 	if err != nil {
 		return nil, false, err
+	}
+	if !ok {
+		return nil, false, nil
 	}
 	return f.lookupKeyInValue(ctx, key, body)
 }
@@ -320,6 +355,12 @@ func (f *FieldReference) cacheMiss(key string) {
 }
 
 func (f *FieldReference) Value(ctx context.Context, key string) (v Value, ok bool, err error) {
+	if f.Field.StaticKey != "" {
+		if key != f.Field.StaticKey {
+			return nil, false, nil
+		}
+		return f.Field.StaticValue.(Value), true, nil
+	}
 	if f.misses[key] {
 		return nil, false, nil
 	}
@@ -344,6 +385,10 @@ func (f *FieldReference) Value(ctx context.Context, key string) (v Value, ok boo
 }
 
 func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
+	if f.Field.StaticKey != "" {
+		return []string{f.Field.StaticKey}, nil
+	}
+
 	if f.keys != nil || f.Field.Key.Match {
 		return f.keys, nil
 	}
@@ -364,9 +409,12 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 	}
 
 	if f.Field.Key.Name == nil {
-		b, err := f.getBody(ctx, "")
+		b, ok, err := f.getBody(ctx, "")
 		if err != nil {
 			return nil, err
+		}
+		if !ok {
+			return nil, nil
 		}
 		t, err := b.Type(ctx)
 		if err != nil {

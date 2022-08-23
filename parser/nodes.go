@@ -88,6 +88,14 @@ func toIndexLookup(expr interface{}, c *current) (interface{}, error) {
 	}, nil
 }
 
+func toSliceLookup(start, end interface{}, c *current) (interface{}, error) {
+	return &ast.Lookup{
+		Position: toPos(c),
+		Start:    start.(*ast.Value).Expression,
+		End:      end.(*ast.Value).Expression,
+	}, nil
+}
+
 func toParens(value interface{}, c *current) (interface{}, error) {
 	return &ast.Parens{
 		Position: toPos(c),
@@ -156,14 +164,30 @@ func toListComprehension(id1, id2, expr, obj interface{}, c *current) (interface
 	}, nil
 }
 
-func toIfField(condition, obj interface{}, c *current) (interface{}, error) {
-	return &ast.Field{
+func toElse(objOrIf interface{}, c *current) (interface{}, error) {
+	switch v := objOrIf.(type) {
+	case *ast.Value:
+		return &ast.If{
+			Object: v.Object,
+		}, nil
+	case *ast.Field:
+		return v.If, nil
+	}
+	return nil, fmt.Errorf("invalid else block %T", objOrIf)
+}
+
+func toIfField(condition, obj, ifElse interface{}, c *current) (interface{}, error) {
+	f := &ast.Field{
 		Position: toPos(c),
 		If: &ast.If{
 			Condition: condition.(*ast.Value).Expression,
 			Object:    obj.(*ast.Value).Object,
 		},
-	}, nil
+	}
+	if ifElse != nil {
+		f.If.Else = ifElse.(*ast.If)
+	}
+	return f, nil
 }
 
 func toLetField(key, value interface{}, c *current) (interface{}, error) {

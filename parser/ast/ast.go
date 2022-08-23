@@ -24,11 +24,15 @@ type Field struct {
 	Value    *Value
 	If       *If
 	For      *For
+
+	StaticKey   string
+	StaticValue interface{}
 }
 
 type If struct {
 	Condition *Expression
 	Object    *Object
+	Else      *If
 }
 
 type For struct {
@@ -111,6 +115,8 @@ type Lookup struct {
 	Position Position
 	Literal  *Literal
 	Index    *Expression
+	Start    *Expression
+	End      *Expression
 	Call     *Call
 }
 

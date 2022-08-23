@@ -1,0 +1,55 @@
+let sort = {
+    _args: [[], {}]
+
+    _merge: {
+        _args: [ [], [], {} ]
+        left: _args[0]
+        right: _args[1]
+        less: _args[2]
+        if len(left) == 0 {
+            _return: right
+        } else if len(right) == 0 {
+            _return: left
+        } else if less(left[0], right[0]) {
+           _return: [left[0]] + [right[0]] + _merge(left[1:len(left)], right[1:len(right)], less)
+        } else {
+           _return: [right[0]] + [left[0]] + _merge(right[1:len(right)], left[1:len(left)], less)
+        }
+    }
+
+    // vars
+    list: _args[0]
+    defaultComparator: {
+        _return: _args[0] < _args[1]
+    }
+    less: defaultComparator
+    if len(_args) > 1 {
+        less: _args[1]
+    }
+
+    if len(list) <= 1 {
+        _return: list
+    } else if len(list) == 2 {
+        if less(list[0], list[1]) {
+            _return: list
+            less: 5
+        } else {
+            _return: [list[1], list[0]]
+        }
+    } else {
+        _len: len(list)
+        _return: _merge(sort(list[0:_len/2], less), sort(list[_len/2:_len], less), less)
+    }
+}
+
+x: sort([3, 2, 5, 1, 7])
+---
+{
+    "x": [
+        1,
+        2,
+        3,
+        5,
+        7
+    ]
+}

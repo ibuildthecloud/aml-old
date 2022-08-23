@@ -26,6 +26,17 @@ type ObjectReference struct {
 	keyOrder []string
 }
 
+func (o *ObjectReference) Len(ctx context.Context) (int, error) {
+	l, err := o.Keys(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(l) == 1 && l[0] == EmbeddedKey {
+		return 0, nil
+	}
+	return len(l), nil
+}
+
 func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
 	o.process()
 	if o.keyOrder != nil {
@@ -84,24 +95,19 @@ func (o *ObjectReference) Call(ctx context.Context, scope *Scope, args *ast.Valu
 	}()
 	tick(ctx)
 
+	v, err := ToValue(ctx, scope, args)
+	if err != nil {
+		return nil, err
+	}
+
 	call := &ObjectReference{
 		Position: o.Position,
-		Scope:    scope,
+		Scope:    o.Scope,
 		Fields: []*ast.Field{
 			{
-				Position: args.Position,
-				Key: ast.Key{
-					Position: args.Position,
-					Name: &ast.String{
-						Position: args.Position,
-						Parts: []ast.StringPart{
-							{
-								String: &ArgsName,
-							},
-						},
-					},
-				},
-				Value: args,
+				Position:    args.Position,
+				StaticKey:   ArgsName,
+				StaticValue: v,
 			},
 		},
 	}
@@ -111,13 +117,22 @@ func (o *ObjectReference) Call(ctx context.Context, scope *Scope, args *ast.Valu
 		return nil, fmt.Errorf("error in call merge: %w", err)
 	}
 	ret, ok, err := obj.Lookup(ctx, ReturnName)
-	if !ok {
-		return nil, fmt.Errorf("invalid function missing return key")
-	}
 	if err != nil {
 		return nil, fmt.Errorf("err in call return: %w", err)
 	}
+	if !ok {
+		return nil, fmt.Errorf("invalid function missing return key")
+	}
 	return ret, err
+}
+
+func (o *ObjectReference) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
+	defer func() {
+		err = wrapErr(o.Position, err)
+	}()
+	tick(ctx)
+
+	return nil, fmt.Errorf("can not slice an object")
 }
 
 func (o *ObjectReference) Lookup(ctx context.Context, key string) (_ Value, _ bool, err error) {

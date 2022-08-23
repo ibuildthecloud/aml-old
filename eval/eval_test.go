@@ -39,11 +39,12 @@ func TestEval(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := ToValue(context.Background(), &Scope{}, node.(*ast.Value))
+			ctx := WithTicks(context.Background(), 10000)
+			v, err := Eval(ctx, &Scope{}, node.(*ast.Value))
 			if err != nil {
 				t.Fatal(err)
 			}
-			iface, err := v.Interface(context.Background())
+			iface, err := v.Interface(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}

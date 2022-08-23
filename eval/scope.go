@@ -38,6 +38,9 @@ func (s *Scope) Disallow(keys ...string) *Scope {
 }
 
 func (s *Scope) Merge(newParent *Scope) *Scope {
+	if s == newParent {
+		return s
+	}
 	return &Scope{
 		Parent:          newParent,
 		SecondaryParent: s,

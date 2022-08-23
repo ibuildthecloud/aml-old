@@ -10,7 +10,11 @@ EmbeddedField <- v1:Expression COMMA? { return toEmbeddedField(v1, c) }
 
 LetField <- LET v1:Identifier ASSIGN v2:Expression COMMA? { return toLetField(v1, v2, c) }
 
-IfField <- IF v1:Expression v2:Object COMMA? { return toIfField(v1, v2, c) }
+IfField <- v1:IfExpr COMMA? { return noop(v1) }
+
+IfExpr <- IF v1:Expression v2:Object v3:ElseExpr? { return toIfField(v1, v2, v3, c) }
+
+ElseExpr <- ELSE v1:(Object / IfExpr) { return toElse(v1, c) }
 
 KeyField <- v1:Key COLON v2:Expression COMMA? { return toField(v1, v2, c) }
 
@@ -37,20 +41,21 @@ Interpolation <- "\\(" v1:Expression ')' { return noop(v1) }
 
 Expression <- v1:Selector v2:(Op Selector)* { return toExpression(v1, v2, c) }
 
-Selector <- v1:NOT? v2:(Parens / ListComprehension / Value / Identifier) v3:(DotLookup/IndexLookup/Call)* { return toSelector(v1, v2, v3, c) }
+Selector <- v1:NOT? v2:(Parens / ListComprehension / Value / Identifier) v3:(DotLookup/SliceLookup/IndexLookup/Call)* { return toSelector(v1, v2, v3, c) }
 
 ListComprehension <- LBRACKET FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object RBRACKET { return toListComprehension(v1, v2, v3, v4, c) }
 
 Parens <- LPAREN v1:Expression RPAREN { return toParens(v1, c) }
 
 DotLookup <- DOT v1:Identifier { return toDotLookup(v1, c) }
+SliceLookup <- LBRACKET v1:Expression COLON v2:Expression RBRACKET { return toSliceLookup(v1, v2, c) }
 IndexLookup <- LBRACKET v1:Expression RBRACKET { return toIndexLookup(v1, c) }
 Call <- LPAREN v1:(NamedArgs / PositionalArgs) RPAREN { return toCall(v1, c) }
 
 PositionalArgs <- v1:Expression? v2:(COMMA Expression)* { return toArray(v1, v2, c) }
 NamedArgs <- v1:KeyField+ { return toObject(v1, c) }
 
-Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS / REGEQ / REGNEQ ) { return newOp(v1, c) }
+Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS / REGEQ / REGNEQ / LTE / GTE / LT / GT) { return newOp(v1, c) }
 
 Array <- LBRACKET v1:Expression? v2:(COMMA Expression)* COMMA? RBRACKET { return toArray(v1, v2, c) }
 
@@ -94,6 +99,7 @@ LET <- "let" __ { return currentString(c) }
 ASSIGN <- '=' __ { return currentString(c) }
 NOT <- '!' __ { return currentString(c) }
 IF <- "if" __ { return currentString(c) }
+ELSE <- "else" __ { return currentString(c) }
 IN <- "in" __ { return currentString(c) }
 FOR <- "for" __ { return currentString(c) }
 COMMA <- ',' __ { return currentString(c) }
@@ -107,6 +113,10 @@ MINUS <- '-' __ { return currentString(c) }
 MUL <- '*' __ { return currentString(c) }
 PLUS <- '+' __ { return currentString(c) }
 DIVIDE <- '/' __ { return currentString(c) }
+LT <- '<' __ { return currentString(c) }
+LTE <- "<=" __ { return currentString(c) }
+GT <- '>' __ { return currentString(c) }
+GTE <- ">=" __ { return currentString(c) }
 MERGE <- '&' __ { return currentString(c) }
 EQUALS <- "==" __ { return currentString(c) }
 NOTEQUALS <- "!=" __ { return currentString(c) }

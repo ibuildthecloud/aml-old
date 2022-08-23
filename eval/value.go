@@ -17,18 +17,20 @@ type ErrInvalidLookup struct {
 type Type string
 
 const (
-	TypeString = Type("string")
-	TypeBool   = Type("bool")
-	TypeArray  = Type("array")
-	TypeObject = Type("object")
-	TypeNumber = Type("number")
-	TypeNull   = Type("null")
+	TypeString  = Type("string")
+	TypeBool    = Type("bool")
+	TypeArray   = Type("array")
+	TypeObject  = Type("object")
+	TypeNumber  = Type("number")
+	TypeNull    = Type("null")
+	TypeBuiltin = Type("builtin")
 )
 
 type Value interface {
 	Type(ctx context.Context) (Type, error)
 	Lookup(ctx context.Context, key string) (Value, bool, error)
 	Index(ctx context.Context, val Value) (Value, bool, error)
+	Slice(ctx context.Context, start, end Value) (Value, error)
 	Interface(ctx context.Context) (any, error)
 }
 
@@ -36,8 +38,6 @@ type Callable interface {
 	Call(ctx context.Context, scope *Scope, args *ast.Value) (Value, error)
 }
 
-// Casting an object to this interface is not enough to determine a value
-// is an Object you must first check that Value.Type() returns TypeObject
 type ObjectValue interface {
 	Keys(ctx context.Context) ([]string, error)
 	GetScope(ctx context.Context) (*Scope, error)
@@ -50,6 +50,10 @@ type Iterator interface {
 	Next() (Value, bool, error)
 }
 
+type Length interface {
+	Len(ctx context.Context) (int, error)
+}
+
 type ArrayValue interface {
 	Iterator(ctx context.Context) (Iterator, error)
 	Empty(ctx context.Context) (bool, error)
@@ -58,6 +62,10 @@ type ArrayValue interface {
 type Locals struct {
 	values map[string]Local
 	order  []string
+}
+
+func (l *Locals) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
+	return nil, fmt.Errorf("can not slice locals object")
 }
 
 func (l *Locals) Add(key string, v Value) {
@@ -109,11 +117,15 @@ type Local struct {
 
 type Scalar struct {
 	Position ast.Position
-	Scope    *Scope
 	Null     bool
 	Bool     *bool
 	String   *string
 	Number   *ast.Number
+}
+
+func (s *Scalar) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
+	t, _ := s.Type(ctx)
+	return nil, fmt.Errorf("can not slice type %s", t)
 }
 
 func (s *Scalar) Type(ctx context.Context) (Type, error) {
@@ -171,10 +183,13 @@ func ToObject(scope *Scope, v *ast.Object) *ObjectReference {
 	}
 }
 
+func Eval(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
+	return ToValue(ctx, scope.Push(NewBuiltin()), v)
+}
+
 func ToValue(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
 	ret := &Scalar{
 		Position: v.Position,
-		Scope:    scope,
 		Null:     v.Null,
 		Bool:     v.Bool,
 		Number:   v.Number,

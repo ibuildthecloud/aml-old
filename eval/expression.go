@@ -40,10 +40,6 @@ func processOperators(ctx context.Context, scope *Scope, acc Acc, chain []opChai
 }
 
 func processOps(ctx context.Context, scope *Scope, chain []opChain) (_ Value, err error) {
-	chain, err = processOperators(ctx, scope, merge, chain, "&")
-	if err != nil {
-		return nil, err
-	}
 	chain, err = processOperators(ctx, scope, BinaryOp, chain, "*", "/")
 	if err != nil {
 		return nil, err
@@ -52,11 +48,19 @@ func processOps(ctx context.Context, scope *Scope, chain []opChain) (_ Value, er
 	if err != nil {
 		return nil, err
 	}
-	chain, err = processOperators(ctx, scope, BinaryOp, chain, "&&", "||")
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "==", "!=", "<", "<=", ">", ">=", "=~", "!~")
 	if err != nil {
 		return nil, err
 	}
-	chain, err = processOperators(ctx, scope, BinaryOp, chain, "==", "!=", "=~", "!~")
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "&&")
+	if err != nil {
+		return nil, err
+	}
+	chain, err = processOperators(ctx, scope, BinaryOp, chain, "||")
+	if err != nil {
+		return nil, err
+	}
+	chain, err = processOperators(ctx, scope, merge, chain, "&")
 	if err != nil {
 		return nil, err
 	}
@@ -139,6 +143,19 @@ func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base
 			}
 			if !ok {
 				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index"))
+			}
+		} else if l.Start != nil {
+			start, err := EvaluateExpression(ctx, scope, l.Start)
+			if err != nil {
+				return nil, wrapErr(l.Start.Position, fmt.Errorf("failed to evaluate slice start expression: %w", err))
+			}
+			end, err := EvaluateExpression(ctx, scope, l.End)
+			if err != nil {
+				return nil, wrapErr(l.End.Position, fmt.Errorf("failed to evaluate slice end expression: %w", err))
+			}
+			base, err = base.Slice(ctx, start, end)
+			if err != nil {
+				return nil, wrapErr(l.Start.Position, fmt.Errorf("failed to create slice: %w", err))
 			}
 		} else if l.Call != nil {
 			callable, ok := base.(Callable)

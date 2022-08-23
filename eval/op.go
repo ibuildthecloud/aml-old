@@ -56,10 +56,10 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 			if err != nil {
 				return nil, err
 			}
-			val = append(val, v)
 			if !cont {
 				break
 			}
+			val = append(val, v)
 		}
 		for {
 			v, cont, err := rightIter.Next()
@@ -159,7 +159,11 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 	irv, _ := rv.(int64)
 
 	if flvok || frvok {
-		var ret float64
+		var (
+			ret  float64
+			retb bool
+			b    bool
+		)
 		if !flvok {
 			flv = float64(ilv)
 		} else if !frvok {
@@ -174,6 +178,24 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 			ret = flv + frv
 		case "-":
 			ret = flv - frv
+		case "<":
+			retb = flv < frv
+			b = true
+		case "<=":
+			retb = flv <= frv
+			b = true
+		case ">":
+			retb = flv > frv
+			b = true
+		case ">=":
+			retb = flv >= frv
+			b = true
+		}
+		if b {
+			return &Scalar{
+				Position: pos,
+				Bool:     &retb,
+			}, nil
 		}
 		s := fmt.Sprint(ret)
 		return &Scalar{
@@ -182,7 +204,11 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		}, nil
 	}
 
-	var ret int64
+	var (
+		ret  int64
+		retb bool
+		b    bool
+	)
 	switch op {
 	case "*":
 		ret = ilv * irv
@@ -192,6 +218,24 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		ret = ilv + irv
 	case "-":
 		ret = ilv - irv
+	case "<":
+		retb = ilv < irv
+		b = true
+	case "<=":
+		retb = ilv <= irv
+		b = true
+	case ">":
+		retb = ilv > irv
+		b = true
+	case ">=":
+		retb = ilv >= irv
+		b = true
+	}
+	if b {
+		return &Scalar{
+			Position: pos,
+			Bool:     &retb,
+		}, nil
 	}
 	s := fmt.Sprint(ret)
 	return &Scalar{

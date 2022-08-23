@@ -14,7 +14,7 @@ func tick(ctx context.Context) {
 		panic(ctx.Err())
 	default:
 	}
-	i, _ := ctx.Value(tickCounter{}).(*int64)
+	i, _ := ctx.Value(tickCounter{}).(*int)
 	if i != nil {
 		*i--
 		if *i <= 0 {

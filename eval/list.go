@@ -48,7 +48,6 @@ func EvaluateList(ctx context.Context, scope *Scope, expr *ast.For) (_ *Array, e
 		locals := &Locals{}
 		locals.Add(expr.IndexVar, &Scalar{
 			Position: expr.Position,
-			Scope:    scope,
 			Number:   &index,
 		})
 		locals.Add(expr.ValueVar, v)
