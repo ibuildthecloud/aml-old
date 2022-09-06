@@ -1,44 +1,42 @@
-let sort = {
-    _args: [[], {}]
+let defaultComparator: {
+    args: {left: 0, right: 1}
+    return: args.left < args.right
+}
 
-    _merge: {
-        _args: [ [], [], {} ]
-        left: _args[0]
-        right: _args[1]
-        less: _args[2]
-        if len(left) == 0 {
-            _return: right
-        } else if len(right) == 0 {
-            _return: left
-        } else if less(left[0], right[0]) {
-           _return: [left[0]] + [right[0]] + _merge(left[1:len(left)], right[1:len(right)], less)
+let merge: {
+    args: {
+        left: []
+        right: []
+        less: defaultComparator
+    }
+    if len(args.left) == 0 {
+        return: args.right
+    } else if len(args.right) == 0 {
+        return: args.left
+    } else if args.less(args.left[0], args.right[0]) {
+       return: [args.left[0]] + [args.right[0]] + merge(args.left[1:len(args.left)], args.right[1:len(args.right)], args.less)
+    } else {
+       return: [args.right[0]] + [args.left[0]] + merge(args.right[1:len(args.right)], args.left[1:len(args.left)], args.less)
+    }
+}
+
+let sort: {
+    args: {
+        list: []
+        less: defaultComparator
+    }
+
+    if len(args.list) <= 1 {
+        return: args.list
+    } else if len(args.list) == 2 {
+        if args.less(args.list[0], args.list[1]) {
+            return: args.list
         } else {
-           _return: [right[0]] + [left[0]] + _merge(right[1:len(right)], left[1:len(left)], less)
-        }
-    }
-
-    // vars
-    list: _args[0]
-    defaultComparator: {
-        _return: _args[0] < _args[1]
-    }
-    less: defaultComparator
-    if len(_args) > 1 {
-        less: _args[1]
-    }
-
-    if len(list) <= 1 {
-        _return: list
-    } else if len(list) == 2 {
-        if less(list[0], list[1]) {
-            _return: list
-            less: 5
-        } else {
-            _return: [list[1], list[0]]
+            return: [args.list[1], args.list[0]]
         }
     } else {
-        _len: len(list)
-        _return: _merge(sort(list[0:_len/2], less), sort(list[_len/2:_len], less), less)
+        l: len(args.list)
+        return: merge(sort(args.list[0:l/2], args.less), sort(args.list[l/2:l], args.less), args.less)
     }
 }
 

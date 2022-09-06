@@ -127,22 +127,26 @@ func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base
 		if l.Literal != nil {
 			base, ok, err = base.Lookup(ctx, l.Literal.Value)
 			if err != nil {
-				return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to find key %s: %w", l.Literal.Value, err))
+				return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to lookup key %s: %w", l.Literal.Value, err))
 			}
 			if !ok {
-				return nil, wrapErr(l.Literal.Position, fmt.Errorf("failed to find key %s", l.Literal.Value))
+				return nil, wrapErr(l.Literal.Position, &ErrKeyNotFound{
+					Key: l.Literal.Value,
+				})
 			}
 		} else if l.Index != nil {
 			v, err := EvaluateExpression(ctx, scope, l.Index)
 			if err != nil {
 				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to evaluate index: %w", err))
 			}
-			base, ok, err = base.Index(ctx, v)
-			if err != nil {
-				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index: %w", err))
-			}
+			indexable, ok := base.(Indexable)
 			if !ok {
-				return nil, wrapErr(l.Index.Position, fmt.Errorf("failed to find index"))
+				t, _ := base.Type(ctx)
+				return nil, wrapErr(l.Index.Position, fmt.Errorf("target of type %s is not indexable", t))
+			}
+			base, err = indexable.Index(ctx, v)
+			if err != nil {
+				return nil, wrapErr(l.Index.Position, err)
 			}
 		} else if l.Start != nil {
 			start, err := EvaluateExpression(ctx, scope, l.Start)
@@ -153,7 +157,7 @@ func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base
 			if err != nil {
 				return nil, wrapErr(l.End.Position, fmt.Errorf("failed to evaluate slice end expression: %w", err))
 			}
-			base, err = base.Slice(ctx, start, end)
+			base, err = Slice(ctx, base, start, end)
 			if err != nil {
 				return nil, wrapErr(l.Start.Position, fmt.Errorf("failed to create slice: %w", err))
 			}
@@ -163,9 +167,13 @@ func selectorToValue(ctx context.Context, scope *Scope, sel *ast.Selector) (base
 				t, _ := base.Type(ctx)
 				return nil, wrapErr(l.Call.Position, fmt.Errorf("target of type %s is not callable", t))
 			}
-			base, err = callable.Call(ctx, scope, l.Call.Args)
+			kvs, err := callToKeyValue(ctx, scope, l.Call)
 			if err != nil {
-				return nil, wrapErr(l.Call.Position, fmt.Errorf("failed to call: %w", err))
+				return nil, err
+			}
+			base, err = callable.Call(ctx, scope, l.Call.Position, kvs)
+			if err != nil {
+				return nil, wrapErr(l.Call.Position, err)
 			}
 		}
 	}

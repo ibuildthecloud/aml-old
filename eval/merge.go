@@ -40,6 +40,10 @@ func merge(ctx context.Context, _ *Scope, pos ast.Position, _ string, left, righ
 		return right, nil
 	}
 
+	if right == nil {
+		return left, nil
+	}
+
 	lvt, err := left.Type(ctx)
 	if err != nil {
 		return nil, err
@@ -50,14 +54,12 @@ func merge(ctx context.Context, _ *Scope, pos ast.Position, _ string, left, righ
 		return nil, err
 	}
 
-	if lvt == TypeObject && rvt == TypeArray {
-		empty, err := right.(ArrayValue).Empty(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if empty {
-			return left, nil
-		}
+	if lvt == TypeNull || rvt == TypeNull {
+		return right, nil
+	}
+
+	if rvt == TypeNull {
+		return right, nil
 	}
 
 	if lvt != rvt {
@@ -70,5 +72,5 @@ func merge(ctx context.Context, _ *Scope, pos ast.Position, _ string, left, righ
 
 	leftObject := left.(ObjectValue)
 	rightObject := right.(ObjectValue)
-	return leftObject.Merge(ctx, rightObject)
+	return MergeObjects(ctx, leftObject, rightObject)
 }

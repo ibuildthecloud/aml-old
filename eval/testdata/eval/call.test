@@ -1,15 +1,19 @@
-outer: inner: {
-    let _return = [_args[0], _args[1]]
+outer: swap: {
+    let args = {
+        left: null
+        right: null
+    }
+    let return = [args.right, args.left]
 }
 
-outer: result: outer.inner(1, 2)
+outer: result: outer.swap(1, 2)
 ---
 {
     "outer": {
-        "inner": {},
         "result": [
-            1,
-            2
-        ]
+            2,
+            1
+        ],
+        "swap": {}
     }
 }

@@ -1,0 +1,168 @@
+range1: std.range(5)
+range2: std.range(0, 5)
+
+rangef: std.range(5.0)
+
+rangef2: std.range(0.1, 5.1)
+
+range2: std.range(0, 5, 2)
+
+ifelse1: std.ifelse(range2[0] == 1, "is one", "is not one")
+ifelse2: std.ifelse(range2[0] == 0, "is not one", "is one")
+
+fromYAML: std.fromYAML("""
+    foo: bar
+    """)
+
+sha1sum: std.sha1sum("hi")
+
+sha256sum: std.sha256sum("hi")
+
+sha512sum: std.sha512sum("hi")
+
+base64: std.base64("hello")
+
+base64decode: std.base64decode("aGVsbG8=")
+
+toHex1: std.toHex("hi")
+
+fromHex: std.fromHex("6869")
+
+toJSON: std.toJSON({foo: "bar"})
+
+fromJSON: std.fromJSON("""
+    {"foo":"bar"}
+    """)
+
+slice: std.slice([1, 2, 3], 1, 2)
+
+sort1: std.sort([2, 5, 4], {args: {x: number, y: number}, return: args.x > args.y})
+sort2: std.reverse([2, 4, 5])
+sort3: std.sort([2, 5, 4])
+
+splitHostPort: std.splitHostPort("example.com:443")
+
+splitHostPort2: std.splitHostPort("[1::1]:443")
+
+joinHostPort: std.joinHostPort("1::1", 443)
+
+pathJoin1: std.pathJoin(["a", "//b", "c/"], "/")
+pathJoin2: std.pathJoin(["a", "//b", "c/"])
+
+pathJoin3: std.pathJoin(["a", "//b", "c/"], "\\")
+
+dirname: std.dirname("a/b")
+
+basename: std.basename("a/b")
+
+fileExt: std.fileExt("cmd.bat")
+
+atoi: std.atoi("4")
+
+anum: 4
+itoa: "\(anum)"
+
+toTitle: std.toTitle("hello")
+
+contains1: std.contains("asdf", "as")
+contains2: std.contains(["asdf","bar"], "bar")
+contains3: std.contains({"x": "y", "a" :"b"}, "a")
+
+split1: std.split("hi,bye", ",")
+split2: std.split("hi,bye,foo", ",", 2)
+
+join: std.join(["a", "b"], ",")
+
+endsWith: std.endsWith("foobar", "foo")
+
+startsWith: std.startsWith("foobar", "foo")
+
+toUpper: std.toUpper("hi")
+
+toLower: std.toLower("HI")
+
+trim: std.trim("  hi  ")
+
+trimSuffix: std.trimSuffix("asdf", "df")
+
+trimPrefix: std.trimPrefix("asdf", "as")
+
+replace: std.replace("hhh", "h", "b")
+
+replace2: std.replace("hhhhh", "h", "b", 3)
+
+indexOf: std.indexOf("hello", "ll")
+
+indexOf2: std.indexOf(["hello", "ll"], "ll")
+
+merge: std.merge({"a": "b", "c": "d", f: {"a": "b", "x": "y", "l": [1, 2]}}, {"a": "b1", "d": "e", f: {"x": "y1", "l": [1, 2, 3]}})
+
+mod1: std.mod(3, 2)
+mod2: std.mod(3, 2)
+
+---
+{
+    "anum": 4,
+    "atoi": 4,
+    "base64": "aGVsbG8=",
+    "base64decode": "hello",
+    "basename": "b",
+    "contains1": true,
+    "contains2": true,
+    "contains3": true,
+    "dirname": "a",
+    "endsWith": false,
+    "fileExt": ".bat",
+    "fromHex": "hi",
+    "fromJSON": {"foo": "bar"},
+    "fromYAML": {"foo": "bar"},
+    "ifelse1": "is not one",
+    "ifelse2": "is not one",
+    "indexOf": 2,
+    "indexOf2": 1,
+    "itoa": "4",
+    "join": "a,b",
+    "joinHostPort": "[1::1]:443",
+    "merge": {
+        "a": "b1",
+        "c": "d",
+        "d": "e",
+        "f": {
+            "a": "b",
+            "x": "y1",
+            "l": [1, 2, 3]
+        }
+    },
+    "mod1": 1,
+    "mod2": 1,
+    "pathJoin1": "a/b/c",
+    "pathJoin2": "a/b/c",
+    "pathJoin3": "a\\b\\c",
+    "range1": [0, 1, 2, 3, 4],
+    "range2": [0, 1, 2, 3, 4],
+    "range2": [0, 2, 4],
+    "rangef": [0, 1, 2, 3, 4],
+    "rangef2": [0.1, 1.1, 2.1, 3.1, 4.1],
+    "replace2": "bbbhh",
+    "replace": "bbb",
+    "sha1sum": "c22b5f9178342609428d6f51b2c5af4c0bde6a42",
+    "sha256sum": "8f434346648f6b96df89dda901c5176b10a6d83961dd3c1ac88b59b2dc327aa4",
+    "sha512sum": "150a14ed5bea6cc731cf86c41566ac427a8db48ef1b9fd626664b3bfbb99071fa4c922f33dde38719b8c8354e2b7ab9d77e0e67fc12843920a712e73d558e197",
+    "slice": [2],
+    "sort1": [5, 4, 2],
+    "sort2": [5, 4, 2],
+    "sort3": [2, 4, 5],
+    "split1": ["hi", "bye"],
+    "split2": ["hi", "bye,foo"],
+    "splitHostPort2": ["1::1", "443"],
+    "splitHostPort": ["example.com", "443"],
+    "startsWith": true,
+    "toHex1": "6869",
+    "toJSON": "{\"foo\":\"bar\"}",
+    "toLower": "hi",
+    "toTitle": "Hello",
+    "toUpper": "HI",
+    "trim": "hi",
+    "trimPrefix": "df",
+    "trimSuffix": "as"
+}

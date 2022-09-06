@@ -36,21 +36,26 @@ type If struct {
 }
 
 type For struct {
-	Position Position
-	IndexVar string
-	ValueVar string
-	Array    *Expression
-	Object   *Object
+	Position  Position
+	IndexVar  string
+	ValueVar  string
+	Condition *Expression
+	Array     *Expression
+	Object    *Object
 }
 
 type Position struct {
+	Source string
 	Line   int
 	Col    int
 	Offset int
 }
 
 func (p Position) String() string {
-	return fmt.Sprintf("%d:%d:%d", p.Line, p.Col, p.Offset)
+	if p.Source == "" {
+		return fmt.Sprintf("%d:%d:%d", p.Line, p.Col, p.Offset)
+	}
+	return fmt.Sprintf("%s:%d:%d:%d", p.Source, p.Line, p.Col, p.Offset)
 }
 
 func (p Position) IsSet() bool {
@@ -121,8 +126,9 @@ type Lookup struct {
 }
 
 type Call struct {
-	Position Position
-	Args     *Value
+	Position   Position
+	Positional *Array
+	Named      *Object
 }
 
 type Selector struct {

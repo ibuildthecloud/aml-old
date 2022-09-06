@@ -62,12 +62,20 @@ func toExpression(sel, ops interface{}, c *current) (interface{}, error) {
 	}, nil
 }
 
-func toCall(val interface{}, c *current) (interface{}, error) {
+func toCall(positional, named interface{}, c *current) (interface{}, error) {
+	call := &ast.Call{
+		Position: toPos(c),
+	}
+	if positional != nil {
+		call.Positional = positional.(*ast.Value).Array
+	}
+	if named != nil {
+		call.Named = named.(*ast.Value).Object
+	}
+
 	return &ast.Lookup{
-		Call: &ast.Call{
-			Position: toPos(c),
-			Args:     val.(*ast.Value),
-		},
+		Position: toPos(c),
+		Call:     call,
 	}, nil
 }
 
@@ -133,7 +141,7 @@ func toSelector(not, value, lookup interface{}, c *current) (interface{}, error)
 }
 
 func toForField(id1, id2, expr, obj interface{}, c *current) (interface{}, error) {
-	v, err := toListComprehension(id1, id2, expr, obj, c)
+	v, err := toListComprehension(id1, id2, expr, obj, nil, c)
 	if err != nil {
 		return nil, err
 	}
@@ -143,23 +151,28 @@ func toForField(id1, id2, expr, obj interface{}, c *current) (interface{}, error
 	}, nil
 }
 
-func toListComprehension(id1, id2, expr, obj interface{}, c *current) (interface{}, error) {
+func toListComprehension(id1, id2, expr, obj, ifCond any, c *current) (interface{}, error) {
 	var (
 		valueVar = id1.(string)
 		indexVar = ""
+		cond     *ast.Expression
 	)
 	if id2 != nil {
 		indexVar = valueVar
 		valueVar = toSlice(id2)[1].(string)
 	}
+	if ifCond != nil {
+		cond = toSlice(ifCond)[1].(*ast.Value).Expression
+	}
 	return &ast.Value{
 		Position: toPos(c),
 		ListComprehension: &ast.For{
-			Position: toPos(c),
-			IndexVar: indexVar,
-			ValueVar: valueVar,
-			Array:    expr.(*ast.Value).Expression,
-			Object:   obj.(*ast.Value).Object,
+			Condition: cond,
+			Position:  toPos(c),
+			IndexVar:  indexVar,
+			ValueVar:  valueVar,
+			Array:     expr.(*ast.Value).Expression,
+			Object:    obj.(*ast.Value).Object,
 		},
 	}, nil
 }
@@ -337,12 +350,18 @@ func toArray(head, tail interface{}, c *current) (interface{}, error) {
 		return ret, nil
 	}
 
-	array.Values = append(array.Values, head.(*ast.Value))
+	if slice, ok := head.([]interface{}); ok {
+		array.Values = append(array.Values, slice[1].(*ast.Value))
+	} else {
+		array.Values = append(array.Values, head.(*ast.Value))
+	}
 
 	for _, item := range toSlice(tail) {
 		itemSlice := toSlice(item)
 		if len(itemSlice) == 2 {
 			array.Values = append(array.Values, itemSlice[1].(*ast.Value))
+		} else if len(itemSlice) == 3 {
+			array.Values = append(array.Values, itemSlice[2].(*ast.Value))
 		}
 	}
 
@@ -449,7 +468,9 @@ func toSlice(v interface{}) []interface{} {
 }
 
 func toPos(c *current) ast.Position {
+	s, _ := c.globalStore["source"].(string)
 	return ast.Position{
+		Source: s,
 		Line:   c.pos.line,
 		Col:    c.pos.col,
 		Offset: c.pos.offset,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 
 	"github.com/acorn-io/aml/parser/ast"
@@ -27,23 +28,30 @@ const (
 )
 
 type Value interface {
+	GetPosition() ast.Position
 	Type(ctx context.Context) (Type, error)
 	Lookup(ctx context.Context, key string) (Value, bool, error)
-	Index(ctx context.Context, val Value) (Value, bool, error)
-	Slice(ctx context.Context, start, end Value) (Value, error)
 	Interface(ctx context.Context) (any, error)
 }
 
+type Indexable interface {
+	Index(ctx context.Context, val Value) (Value, error)
+}
+
+type Sliceable interface {
+	Slice(ctx context.Context, start, end Value) (Value, error)
+}
+
 type Callable interface {
-	Call(ctx context.Context, scope *Scope, args *ast.Value) (Value, error)
+	Call(ctx context.Context, scope *Scope, pos ast.Position, args []KeyValue) (Value, error)
 }
 
 type ObjectValue interface {
 	Keys(ctx context.Context) ([]string, error)
 	GetScope(ctx context.Context) (*Scope, error)
 	GetFields(ctx context.Context) ([]*ast.Field, error)
-	GetPosition(ctx context.Context) (ast.Position, error)
-	Merge(ctx context.Context, val ObjectValue) (Value, error)
+	KeyValues(ctx context.Context) ([]KeyValue, error)
+	GetPosition() ast.Position
 }
 
 type Iterator interface {
@@ -60,37 +68,47 @@ type ArrayValue interface {
 }
 
 type Locals struct {
-	values map[string]Local
-	order  []string
+	Values []KeyValue
 }
 
-func (l *Locals) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
-	return nil, fmt.Errorf("can not slice locals object")
+func (l *Locals) Keys(ctx context.Context) (result []string, _ error) {
+	for _, v := range l.Values {
+		result = append(result, v.Key)
+	}
+	return
 }
 
-func (l *Locals) Add(key string, v Value) {
+func (l *Locals) GetScope(ctx context.Context) (*Scope, error) {
+	return &Scope{}, nil
+}
+
+func (l *Locals) GetFields(ctx context.Context) (result []*ast.Field, _ error) {
+	for _, kv := range l.Values {
+		result = append(result, &ast.Field{
+			Position:    l.GetPosition(),
+			StaticKey:   kv.Key,
+			StaticValue: kv.Value,
+		})
+	}
+	return
+}
+
+func (l *Locals) KeyValues(ctx context.Context) ([]KeyValue, error) {
+	return l.Values, nil
+}
+
+func (l *Locals) GetPosition() ast.Position {
+	return ast.Position{}
+}
+
+func (l *Locals) Add(key string, value Value) {
 	if key == "" {
 		return
 	}
-	if l.values == nil {
-		l.values = map[string]Local{}
-	}
-	if _, ok := l.values[key]; !ok {
-		l.order = append(l.order, key)
-	}
-	l.values[key] = Local{
+	l.Values = append(l.Values, KeyValue{
 		Key:   key,
-		Value: v,
-	}
-}
-
-func (l *Locals) Get(key string) (Local, bool) {
-	v, ok := l.values[key]
-	return v, ok
-}
-
-func (l *Locals) Keys() []string {
-	return l.order
+		Value: value,
+	})
 }
 
 func (l *Locals) Type(ctx context.Context) (Type, error) {
@@ -98,19 +116,23 @@ func (l *Locals) Type(ctx context.Context) (Type, error) {
 }
 
 func (l *Locals) Lookup(ctx context.Context, key string) (Value, bool, error) {
-	v, ok := l.Get(key)
-	return v.Value, ok, nil
+	for _, k := range l.Values {
+		if k.Key == key {
+			return k.Value, true, nil
+		}
+	}
+	return nil, false, nil
 }
 
-func (l *Locals) Index(ctx context.Context, val Value) (Value, bool, error) {
-	return nil, false, fmt.Errorf("index unsupported")
+func (l *Locals) Index(ctx context.Context, val Value) (Value, error) {
+	return nil, fmt.Errorf("index unsupported")
 }
 
 func (l *Locals) Interface(ctx context.Context) (interface{}, error) {
 	return nil, fmt.Errorf("interface unsupported")
 }
 
-type Local struct {
+type KeyValue struct {
 	Key   string
 	Value Value
 }
@@ -123,9 +145,8 @@ type Scalar struct {
 	Number   *ast.Number
 }
 
-func (s *Scalar) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
-	t, _ := s.Type(ctx)
-	return nil, fmt.Errorf("can not slice type %s", t)
+func (s *Scalar) GetPosition() ast.Position {
+	return s.Position
 }
 
 func (s *Scalar) Type(ctx context.Context) (Type, error) {
@@ -167,10 +188,6 @@ func (s *Scalar) Interface(ctx context.Context) (interface{}, error) {
 	panic(fmt.Sprintf("Invalid Scalar, no value set: %s", s.Position))
 }
 
-func (s *Scalar) Index(ctx context.Context, val Value) (_ Value, _ bool, err error) {
-	return nil, false, nil
-}
-
 func (s *Scalar) Lookup(ctx context.Context, key string) (_ Value, _ bool, err error) {
 	return nil, false, nil
 }
@@ -184,7 +201,11 @@ func ToObject(scope *Scope, v *ast.Object) *ObjectReference {
 }
 
 func Eval(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
-	return ToValue(ctx, scope.Push(NewBuiltin()), v)
+	b, err := NewBuiltin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ToValue(ctx, scope.Push(b), v)
 }
 
 func ToValue(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
@@ -215,4 +236,149 @@ func ToValue(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
 		return EvaluateList(ctx, scope, v.ListComprehension)
 	}
 	return ret, nil
+}
+
+type Map struct {
+	Position ast.Position
+	Scope    *Scope
+	Data     map[string]interface{}
+}
+
+func (m *Map) Keys(ctx context.Context) ([]string, error) {
+	var keys []string
+	for k := range m.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
+func (m *Map) GetScope(ctx context.Context) (*Scope, error) {
+	return m.Scope, nil
+}
+
+func (m *Map) GetFields(ctx context.Context) (result []*ast.Field, _ error) {
+	kvs, err := m.KeyValues(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, kv := range kvs {
+		result = append(result, &ast.Field{
+			Position:    m.Position,
+			StaticKey:   kv.Key,
+			StaticValue: kv.Value,
+		})
+	}
+	return
+}
+
+func anyToValue(scope *Scope, pos ast.Position, val any) (Value, error) {
+	if val == nil {
+		return &Scalar{
+			Position: pos,
+			Null:     true,
+		}, nil
+	}
+	switch v := val.(type) {
+	case []interface{}:
+		var values []Value
+		for _, item := range v {
+			newValue, err := anyToValue(scope, pos, item)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, newValue)
+		}
+		return &Array{
+			Position: pos,
+			Values:   values,
+		}, nil
+	case map[string]interface{}:
+		return &Map{
+			Position: pos,
+			Scope:    scope,
+			Data:     v,
+		}, nil
+	case string:
+		return &Scalar{
+			Position: pos,
+			String:   &v,
+		}, nil
+	case int:
+		return &Scalar{
+			Position: pos,
+			Number:   intToNumer(int64(v)),
+		}, nil
+	case int64:
+		return &Scalar{
+			Position: pos,
+			Number:   intToNumer(v),
+		}, nil
+	case float64:
+		return &Scalar{
+			Position: pos,
+			Number:   floatToNumer(v),
+		}, nil
+	case bool:
+		return &Scalar{
+			Position: pos,
+			Bool:     &v,
+		}, nil
+	default:
+		return nil, fmt.Errorf("invalid type: %T", v)
+	}
+}
+
+func (m *Map) KeyValues(ctx context.Context) (result []KeyValue, err error) {
+	keys, err := m.Keys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		val := m.Data[key]
+		valVal, err := anyToValue(m.Scope, m.Position, val)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, KeyValue{
+			Key:   key,
+			Value: valVal,
+		})
+	}
+
+	return
+}
+
+func floatToNumer(i float64) *ast.Number {
+	s := strconv.FormatFloat(i, 'e', -1, 64)
+	v := ast.Number(s)
+	return &v
+}
+
+func intToNumer(i int64) *ast.Number {
+	s := strconv.FormatInt(i, 10)
+	v := ast.Number(s)
+	return &v
+}
+
+func (m *Map) GetPosition() ast.Position {
+	return m.Position
+}
+
+func (m *Map) Type(ctx context.Context) (Type, error) {
+	return TypeObject, nil
+}
+
+func (m *Map) Lookup(ctx context.Context, key string) (Value, bool, error) {
+	v, ok := m.Data[key]
+	if !ok {
+		return nil, false, nil
+	}
+	ret, err := anyToValue(m.Scope, m.Position, v)
+	return ret, true, err
+}
+
+func (m *Map) Interface(ctx context.Context) (any, error) {
+	return m.Data, nil
 }

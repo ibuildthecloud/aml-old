@@ -1,0 +1,17 @@
+let filter: {
+    args: {
+        list: []
+        check: null
+    }
+    return: [for x in args.list {x} if args.check(x) ]
+}
+
+x: ["overwritten"]
+x: filter([1, 2, 3, 4, 5, 6], {
+    args: first: number
+    return: std.mod(args.first, 2) == 0
+})
+---
+{
+    "x": [2, 4, 6]
+}

@@ -14,8 +14,8 @@ type ErrPositionWrapped struct {
 
 func (e *ErrPositionWrapped) Error() string {
 	next := fmt.Sprintf("%v", e.Err)
-	prefixArrow := fmt.Sprintf("%d:%d->", e.Pos.Line, e.Pos.Col)
-	prefixEnd := fmt.Sprintf("%d:%d: ", e.Pos.Line, e.Pos.Col)
+	prefixArrow := fmt.Sprintf("[%s]:%d:%d->", e.Pos.Source, e.Pos.Line, e.Pos.Col)
+	prefixEnd := fmt.Sprintf("[%s]:%d:%d: ", e.Pos.Source, e.Pos.Line, e.Pos.Col)
 	if strings.HasPrefix(next, prefixArrow) || strings.HasPrefix(next, prefixEnd) {
 		return next
 	}

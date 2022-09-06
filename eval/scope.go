@@ -22,6 +22,10 @@ type Scope struct {
 	cycleVars       map[string]bool
 }
 
+func NewScope(val Value) *Scope {
+	return &Scope{Value: val}
+}
+
 func (s *Scope) Disallow(keys ...string) *Scope {
 	cycleVars := map[string]bool{}
 	for _, key := range keys {

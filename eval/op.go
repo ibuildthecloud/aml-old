@@ -36,6 +36,22 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		return nil, err
 	}
 
+	if op == "==" && (lt == TypeNull || rt == TypeNull) {
+		b := lt == rt
+		return &Scalar{
+			Position: pos,
+			Bool:     &b,
+		}, nil
+	}
+
+	if op == "!=" && (lt == TypeNull || rt == TypeNull) {
+		b := lt != rt
+		return &Scalar{
+			Position: pos,
+			Bool:     &b,
+		}, nil
+	}
+
 	if lt != rt {
 		return nil, fmt.Errorf("operator %s in not compatible with types %s and %s", op, lt, rt)
 	}
@@ -73,7 +89,7 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		}
 		return &Array{
 			Position: pos,
-			values:   val,
+			Values:   val,
 		}, nil
 	}
 
@@ -112,7 +128,7 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 			Position: pos,
 			Bool:     &ret,
 		}, nil
-	} else if op == "==" {
+	} else if op == "==" && lt != TypeNumber && rt != TypeNumber {
 		ret := lv == rv
 		return &Scalar{
 			Position: pos,
@@ -190,6 +206,9 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		case ">=":
 			retb = flv >= frv
 			b = true
+		case "==":
+			retb = flv == frv
+			b = true
 		}
 		if b {
 			return &Scalar{
@@ -229,6 +248,9 @@ func BinaryOp(ctx context.Context, _ *Scope, pos ast.Position, op string, left, 
 		b = true
 	case ">=":
 		retb = ilv >= irv
+		b = true
+	case "==":
+		retb = ilv == irv
 		b = true
 	}
 	if b {

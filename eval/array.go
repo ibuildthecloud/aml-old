@@ -8,14 +8,17 @@ import (
 	"github.com/acorn-io/aml/parser/ast"
 )
 
-var _ ArrayValue = (*Array)(nil)
+var (
+	_ ArrayValue = (*Array)(nil)
+	_ Indexable  = (*Array)(nil)
+)
 
 type Array struct {
 	Position ast.Position
 	Scope    *Scope
+	Values   []Value
 
-	array  *ast.Array
-	values []Value
+	array *ast.Array
 }
 
 func (a *Array) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
@@ -63,7 +66,7 @@ func (a *Array) Slice(ctx context.Context, start, end Value) (_ Value, err error
 	return &Array{
 		Position: a.Position,
 		Scope:    a.Scope,
-		values:   a.values[starti:endi],
+		Values:   a.Values[starti:endi],
 	}, nil
 }
 
@@ -75,14 +78,14 @@ func (a *Array) Empty(ctx context.Context) (bool, error) {
 	if err := a.process(ctx); err != nil {
 		return false, err
 	}
-	return len(a.values) == 0, nil
+	return len(a.Values) == 0, nil
 }
 
 func (a *Array) Len(ctx context.Context) (int, error) {
 	if err := a.process(ctx); err != nil {
 		return 0, err
 	}
-	return len(a.values), nil
+	return len(a.Values), nil
 }
 
 func (a *Array) Iterator(ctx context.Context) (Iterator, error) {
@@ -90,51 +93,51 @@ func (a *Array) Iterator(ctx context.Context) (Iterator, error) {
 		return nil, err
 	}
 	return &iter{
-		values: a.values,
+		values: a.Values,
 		ctx:    ctx,
 	}, nil
 }
 
-func (a *Array) Index(ctx context.Context, val Value) (_ Value, _ bool, err error) {
+func (a *Array) Index(ctx context.Context, val Value) (_ Value, err error) {
 	defer func() {
 		err = wrapErr(a.Position, err)
 	}()
 	if t, err := val.Type(ctx); err != nil {
-		return nil, false, err
+		return nil, err
 	} else if t != TypeNumber {
-		return nil, false, fmt.Errorf("can not use type %s as an index to an array", t)
+		return nil, fmt.Errorf("can not use type %s as an index to an array", t)
 	}
 	obj, err := val.Interface(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	lookup, err := obj.(json.Number).Int64()
 	if err != nil {
-		return nil, false, fmt.Errorf("can only use valid integers as an index to an array, got %s: %w", obj, err)
+		return nil, fmt.Errorf("can only use valid integers as an index to an array, got %s: %w", obj, err)
 	}
 
 	iter, err := a.Iterator(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	i := int64(0)
 	for ; ; i++ {
 		v, cont, err := iter.Next()
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		if !cont {
 			break
 		}
 
 		if lookup == i {
-			return v, true, nil
+			return v, nil
 		}
 	}
 
-	return nil, false, fmt.Errorf("index out of bound %d, len %d", lookup, i)
+	return nil, fmt.Errorf("index out of bound %d, len %d", lookup, i)
 }
 
 func (a *Array) Lookup(ctx context.Context, key string) (Value, bool, error) {
@@ -142,7 +145,7 @@ func (a *Array) Lookup(ctx context.Context, key string) (Value, bool, error) {
 }
 
 func (a *Array) process(ctx context.Context) error {
-	if a.values != nil {
+	if a.Values != nil {
 		return nil
 	}
 
@@ -155,7 +158,7 @@ func (a *Array) process(ctx context.Context) error {
 		result = append(result, val)
 	}
 
-	a.values = result
+	a.Values = result
 	return nil
 }
 
@@ -166,10 +169,11 @@ func (a *Array) Interface(ctx context.Context) (_ interface{}, err error) {
 	if err := a.process(ctx); err != nil {
 		return nil, err
 	}
+	tick(ctx)
 
 	// we don't want a nil array
-	result := make([]interface{}, 0, len(a.values))
-	for _, val := range a.values {
+	result := make([]interface{}, 0, len(a.Values))
+	for _, val := range a.Values {
 		v, err := val.Interface(ctx)
 		if err != nil {
 			return nil, err
@@ -177,6 +181,10 @@ func (a *Array) Interface(ctx context.Context) (_ interface{}, err error) {
 		result = append(result, v)
 	}
 	return result, nil
+}
+
+func (a *Array) GetPosition() ast.Position {
+	return a.Position
 }
 
 type iter struct {

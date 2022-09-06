@@ -35,7 +35,7 @@ func TestEval(t *testing.T) {
 			input := expected[:i]
 			expected = expected[i+4:]
 
-			node, err := parser.Parse(file.Name(), []byte(input))
+			node, err := parser.Parse(file.Name(), []byte(input), parser.GlobalStore("source", file.Name()))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,7 +53,21 @@ func TestEval(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			assert.Equal(t, strings.TrimSpace(expected), string(result))
+			expected, err = normalizeJSON(expected)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, expected, string(result))
 		})
 	}
+}
+
+func normalizeJSON(expected string) (string, error) {
+	obj := map[string]any{}
+	err := json.Unmarshal([]byte(strings.TrimSpace(expected)), &obj)
+	if err != nil {
+		return "", err
+	}
+	res, err := json.MarshalIndent(obj, "", "    ")
+	return string(res), err
 }

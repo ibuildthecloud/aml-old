@@ -8,12 +8,13 @@ import (
 )
 
 const (
-	ReturnName = "_return"
+	ReturnName = "return"
 )
 
 var (
 	_        ObjectValue = (*ObjectReference)(nil)
-	ArgsName             = "_args"
+	_        Callable    = (*ObjectReference)(nil)
+	ArgsName             = "args"
 )
 
 type ObjectReference struct {
@@ -24,6 +25,10 @@ type ObjectReference struct {
 	values   map[string]Value
 	fields   []*FieldReference
 	keyOrder []string
+}
+
+func (o *ObjectReference) GetPosition() ast.Position {
+	return o.Position
 }
 
 func (o *ObjectReference) Len(ctx context.Context) (int, error) {
@@ -87,43 +92,6 @@ func (o *ObjectReference) Type(ctx context.Context) (_ Type, err error) {
 		}
 	}
 	return TypeObject, nil
-}
-
-func (o *ObjectReference) Call(ctx context.Context, scope *Scope, args *ast.Value) (_ Value, err error) {
-	defer func() {
-		err = wrapErr(o.Position, err)
-	}()
-	tick(ctx)
-
-	v, err := ToValue(ctx, scope, args)
-	if err != nil {
-		return nil, err
-	}
-
-	call := &ObjectReference{
-		Position: o.Position,
-		Scope:    o.Scope,
-		Fields: []*ast.Field{
-			{
-				Position:    args.Position,
-				StaticKey:   ArgsName,
-				StaticValue: v,
-			},
-		},
-	}
-
-	obj, err := o.Merge(ctx, call)
-	if err != nil {
-		return nil, fmt.Errorf("error in call merge: %w", err)
-	}
-	ret, ok, err := obj.Lookup(ctx, ReturnName)
-	if err != nil {
-		return nil, fmt.Errorf("err in call return: %w", err)
-	}
-	if !ok {
-		return nil, fmt.Errorf("invalid function missing return key")
-	}
-	return ret, err
 }
 
 func (o *ObjectReference) Slice(ctx context.Context, start, end Value) (_ Value, err error) {
@@ -206,7 +174,7 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 
 	data := map[string]interface{}{}
 
-	values, err := o.getValues(ctx)
+	values, err := o.KeyValues(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +196,7 @@ func (o *ObjectReference) Interface(ctx context.Context) (_ interface{}, err err
 	return data, nil
 }
 
-func (o *ObjectReference) getValues(ctx context.Context) (_ []Local, err error) {
+func (o *ObjectReference) KeyValues(ctx context.Context) (_ []KeyValue, err error) {
 	defer func() {
 		err = wrapErr(o.Position, err)
 	}()
@@ -238,7 +206,7 @@ func (o *ObjectReference) getValues(ctx context.Context) (_ []Local, err error) 
 	if err != nil {
 		return nil, err
 	}
-	var result []Local
+	var result []KeyValue
 	for _, key := range keys {
 		v, ok, err := o.Lookup(ctx, key)
 		if err != nil {
@@ -247,16 +215,12 @@ func (o *ObjectReference) getValues(ctx context.Context) (_ []Local, err error) 
 		if !ok {
 			continue
 		}
-		result = append(result, Local{
+		result = append(result, KeyValue{
 			Key:   key,
 			Value: v,
 		})
 	}
 	return result, nil
-}
-
-func (o *ObjectReference) GetPosition(ctx context.Context) (ast.Position, error) {
-	return o.Position, nil
 }
 
 func (o *ObjectReference) GetScope(ctx context.Context) (*Scope, error) {
@@ -267,41 +231,54 @@ func (o *ObjectReference) GetFields(ctx context.Context) ([]*ast.Field, error) {
 	return o.Fields, nil
 }
 
-func (o *ObjectReference) Index(ctx context.Context, val Value) (Value, bool, error) {
+func (o *ObjectReference) Index(ctx context.Context, val Value) (Value, error) {
 	if t, err := val.Type(ctx); err != nil {
-		return nil, false, err
+		return nil, err
 	} else if t != TypeString {
-		return nil, false, fmt.Errorf("can not use type %s as an index to an object", t)
+		return nil, fmt.Errorf("can not use type %s as an index to an object", t)
 	}
 	obj, err := val.Interface(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-
-	return o.Lookup(ctx, obj.(string))
+	v, ok, err := o.Lookup(ctx, obj.(string))
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, &ErrKeyNotFound{
+			Key: obj.(string),
+		}
+	}
+	return v, nil
 }
 
-func (o *ObjectReference) Merge(ctx context.Context, val ObjectValue) (Value, error) {
-	o.process()
+func MergeObjects(ctx context.Context, left, right ObjectValue) (Value, error) {
+	rightPosition := right.GetPosition()
 
-	rightPosition, err := val.GetPosition(ctx)
+	rightFields, err := right.GetFields(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rightFields, err := val.GetFields(ctx)
+	rightScope, err := right.GetScope(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rightScope, err := val.GetScope(ctx)
+	leftScope, err := left.GetScope(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	leftFields, err := left.GetFields(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ObjectReference{
 		Position: rightPosition,
-		Scope:    o.Scope.Merge(rightScope),
-		Fields:   append(o.Fields, rightFields...),
+		Scope:    leftScope.Merge(rightScope),
+		Fields:   append(leftFields, rightFields...),
 	}, nil
 }
