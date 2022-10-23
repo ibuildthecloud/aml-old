@@ -1,0 +1,24 @@
+num: 5,
+str: "string"
+"array": [6, asdf.asdf.asdf, 4]
+sub: { num: 5,
+str: "string", "array": [6, asdf.asdf.asdf, 4], asingle: [
+ 5]}
+---
+num: 5
+str: "string"
+array: [
+    6,
+    asdf.asdf.asdf,
+    4
+]
+sub: {
+    num: 5
+    str: "string"
+    array: [
+        6,
+        asdf.asdf.asdf,
+        4
+    ]
+    asingle: [5]
+}

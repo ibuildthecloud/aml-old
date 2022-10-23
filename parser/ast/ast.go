@@ -29,6 +29,11 @@ type Field struct {
 	StaticValue interface{}
 }
 
+type Token struct {
+	Position Position
+	Token    string
+}
+
 type If struct {
 	Condition *Expression
 	Object    *Object
@@ -79,6 +84,7 @@ type CommentGroups struct {
 	Position Position
 	End      int
 	Lines    []string
+	Text     string
 }
 
 type Value struct {

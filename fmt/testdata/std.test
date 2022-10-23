@@ -1,0 +1,174 @@
+slice: {
+    args: {
+        array: []
+        start: 0
+        stop: 0
+    }
+    return: args.array[args.start:args.stop]
+}
+
+ifelse: {
+    args: {
+        cond: null
+        trueValue: null
+        falseValue: null
+    }
+    if args.cond {
+        return: args.trueValue
+    } else {
+        return: args.falseValue
+    }
+}
+
+reverse: {
+    args: { in: array }
+    return: [ for i in range(len(args.in)-1, -1, -1) {
+        args.in[i]
+    }]
+}
+
+defaultComparator: {
+    args: {
+        left: null
+        right: null
+    }
+    return: args.left < args.right
+}
+
+sort: {
+    args: {
+        list: array
+        comp: null
+    }
+    if args.comp == null {
+        comp: defaultComparator
+    } else {
+        comp: args.comp
+    }
+    return: _sort(args.list, comp)
+}
+
+contains: {
+    args: {
+        collection: null,
+        item: null
+    }
+    if isString(args.collection) && isString(args.item) {
+        return: indexOf(args.collection, args.item) != -1
+    } else if isArray(args.collection) {
+        return: indexOf(args.collection, args.item) != -1
+    } else if isObject(args.collection) && isString(args.item) {
+        return: false
+        for k, v in args.collection {
+            if k == args.item {
+                return: true
+            }
+        }
+    } else {
+        return: false
+    }
+}
+
+merge: {
+    args: {
+        left: {}
+        right: {}
+    }
+    return: args.left & args.right
+}
+
+mod: {
+    args: {
+        left: number
+        right: number
+    }
+    return: args.left - ((args.left/args.right) * args.right)
+}
+
+---
+slice: {
+    args: {
+        array: []
+        start: 0
+        stop: 0
+    }
+    return: args.array[args.start:args.stop]
+}
+
+ifelse: {
+    args: {
+        cond: null
+        trueValue: null
+        falseValue: null
+    }
+    if args.cond {
+        return: args.trueValue
+    } else {
+        return: args.falseValue
+    }
+}
+
+reverse: {
+    args: { in: array }
+    return: [ for i in range(len(args.in)-1, -1, -1) {
+        args.in[i]
+    }]
+}
+
+defaultComparator: {
+    args: {
+        left: null
+        right: null
+    }
+    return: args.left < args.right
+}
+
+sort: {
+    args: {
+        list: array
+        comp: null
+    }
+    if args.comp == null {
+        comp: defaultComparator
+    } else {
+        comp: args.comp
+    }
+    return: _sort(args.list, comp)
+}
+
+contains: {
+    args: {
+        collection: null
+        item: null
+    }
+    if isString(args.collection) && isString(args.item) {
+        return: indexOf(args.collection, args.item) != -1
+    } else if isArray(args.collection) {
+        return: indexOf(args.collection, args.item) != -1
+    } else if isObject(args.collection) && isString(args.item) {
+        return: false
+        for k, v in args.collection {
+            if k == args.item {
+                return: true
+            }
+        }
+    } else {
+        return: false
+    }
+}
+
+merge: {
+    args: {
+        left: {}
+        right: {}
+    }
+    return: args.left & args.right
+}
+
+mod: {
+    args: {
+        left: number
+        right: number
+    }
+    return: args.left - ((args.left / args.right) * args.right)
+}

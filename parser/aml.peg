@@ -85,9 +85,7 @@ DecSuffix <- [KkMmGgTtPpEeZzYy]
 __ <- v1:_* #{ return whitespace(v1, c) }
 _ <- v1:(' ' / '\t' / EOL / Comment) { return space(c) }
 Comment <- "//" (!EOL .)* EOL { return space(c) }
-Quote <- '"'
 EOL <- "\r\n" / '\n' / '\r'
-EOF <- !.
 StringStart <- '"'
 TripleStringStart <- "\"\"\""
 
@@ -128,3 +126,5 @@ REGEQ <- "=~" __ { return currentString(c) }
 REGNEQ <- "!~" __ { return currentString(c) }
 STRINGEND <- '"' __ { return currentString(c) }
 TRIPLESTRINGEND <- "\"\"\"" __ { return currentString(c) }
+
+EOF <- !.

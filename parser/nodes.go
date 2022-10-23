@@ -415,6 +415,7 @@ func whitespace(w interface{}, c *current) error {
 		comments     []string
 		currentBlock []string
 		position     ast.Position
+		text         string = string(c.text)
 		end          int
 	)
 	for i, c := range toSlice(w) {
@@ -438,7 +439,7 @@ func whitespace(w interface{}, c *current) error {
 	if len(currentBlock) > 0 {
 		comments = append(comments, strings.Join(currentBlock, "\n"))
 	}
-	if len(comments) == 0 {
+	if len(comments) == 0 && text == "" {
 		return nil
 	}
 	v, _ := c.state["comments"].([]ast.CommentGroups)
@@ -447,13 +448,14 @@ func whitespace(w interface{}, c *current) error {
 	c.state["comments"] = append(newV, ast.CommentGroups{
 		Position: position,
 		End:      end,
+		Text:     text,
 		Lines:    comments,
 	})
 	return nil
 }
 
 func currentString(c *current) (interface{}, error) {
-	return strings.TrimSpace(string(c.text)), nil
+	return strings.TrimSpace(strings.Split(string(c.text), "//")[0]), nil
 }
 
 func noop(v interface{}) (interface{}, error) {

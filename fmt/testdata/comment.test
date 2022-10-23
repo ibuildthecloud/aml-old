@@ -1,0 +1,27 @@
+
+// Test2
+
+// Test3
+// Test4
+foo: hi
+// one cmt
+one: asdf
+
+// two cmt
+two: asdf   //inline
+
+three: asdf
+---
+// Test2
+
+// Test3
+// Test4
+foo: hi
+
+// one cmt
+one: asdf
+
+// two cmt
+two: asdf
+
+three: asdf

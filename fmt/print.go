@@ -3,52 +3,80 @@ package fmt
 import (
 	"io"
 	"regexp"
+	"strings"
 
 	"github.com/acorn-io/aml/parser/ast"
 )
 
 var (
 	identifiedRegexp = regexp.MustCompile("^[_a-zA-Z][_a-zA-Z0-9]*$")
+	mathOp           = map[string]bool{
+		"+": true,
+		"-": true,
+		"/": true,
+		"*": true,
+	}
 )
 
-type context struct {
+type formatContext struct {
 	indent   string
+	top      bool
 	comments map[int]ast.CommentGroups
 	out      *writer
 }
 
 type writer struct {
-	err error
-	out io.Writer
+	err     error
+	content bool
+	out     io.Writer
 }
 
 func (w *writer) write(s string) {
 	if w.err != nil {
 		return
 	}
-	_, err := w.out.Write([]byte(s))
+	c, err := w.out.Write([]byte(s))
 	if err != nil {
 		w.err = err
 	}
+	if c > 0 {
+		w.content = true
+	}
 }
 
-func Print(out io.Writer, value ast.Value) error {
-	comments := value.Comments
+func Print(out io.Writer, value *ast.Value) error {
+	writer := &writer{
+		out: out,
+	}
+	printValue(formatContext{
+		comments: value.Comments,
+		out:      writer,
+		top:      true,
+	}, *value)
+	return writer.err
 }
 
-func printExpression(c context, expr *ast.Expression) {
+func isNumber(selector *ast.Selector) bool {
+	return selector.Value != nil && selector.Value.Number != nil
+}
+
+func printExpression(c formatContext, expr *ast.Expression) {
 	if expr.Selector != nil {
 		printSelector(c, expr.Selector)
 	}
 	for _, op := range expr.Operator {
-		c.out.write(" ")
-		c.out.write(op.Op.Op)
-		c.out.write(" ")
+		if mathOp[op.Op.Op] && isNumber(op.Selector) {
+			c.out.write(op.Op.Op)
+		} else {
+			c.out.write(" ")
+			c.out.write(op.Op.Op)
+			c.out.write(" ")
+		}
 		printSelector(c, op.Selector)
 	}
 }
 
-func printCall(c context, call ast.Call) {
+func printCall(c formatContext, call ast.Call) {
 	c.out.write("(")
 	i := 0
 	if call.Positional != nil {
@@ -72,7 +100,7 @@ func printCall(c context, call ast.Call) {
 	c.out.write(")")
 }
 
-func printKey(c context, key ast.Key) {
+func printKey(c formatContext, key ast.Key) {
 	if key.Name == nil {
 		return
 	}
@@ -90,24 +118,24 @@ func printKey(c context, key ast.Key) {
 	c.out.write(": ")
 }
 
-func printFor(c context, forField ast.For) {
+func printFor(c formatContext, forField ast.For) {
 	c.out.write("for ")
 	if forField.IndexVar != "" {
 		c.out.write(forField.IndexVar)
 		c.out.write(", ")
 	}
 	c.out.write(forField.ValueVar)
-	c.out.write(" ")
+	c.out.write(" in ")
 	printExpression(c, forField.Array)
 	c.out.write(" ")
-	printObject(c, forField.Object)
+	printObject(c, *forField.Object)
 	if forField.Condition != nil {
 		c.out.write(" if ")
 		printExpression(c, forField.Condition)
 	}
 }
 
-func printIf(c context, ifField ast.If) {
+func printIf(c formatContext, ifField ast.If) {
 	if ifField.Condition != nil {
 		c.out.write("if ")
 		printExpression(c, ifField.Condition)
@@ -122,7 +150,25 @@ func printIf(c context, ifField ast.If) {
 	}
 }
 
-func printField(c context, field ast.Field) {
+func printComments(c formatContext, pos ast.Position) {
+	comments := c.comments[pos.Offset]
+	if len(comments.Lines) == 0 && strings.Contains(comments.Text, "\n") {
+		c.out.write("\n")
+	}
+	for _, line := range comments.Lines {
+		if c.out.content {
+			c.out.write("\n")
+		}
+		for _, line := range strings.Split(line, "\n") {
+			c.out.write("//")
+			c.out.write(line)
+			c.out.write("\n")
+		}
+	}
+}
+
+func printField(c formatContext, field ast.Field) {
+	printComments(c, field.Position)
 	switch {
 	case field.If != nil:
 		printIf(c, *field.If)
@@ -136,7 +182,7 @@ func printField(c context, field ast.Field) {
 	}
 }
 
-func printLookup(c context, lookup ast.Lookup) {
+func printLookup(c formatContext, lookup ast.Lookup) {
 	switch {
 	case lookup.Index != nil:
 		c.out.write("[")
@@ -148,10 +194,15 @@ func printLookup(c context, lookup ast.Lookup) {
 	case lookup.Call != nil:
 		printCall(c, *lookup.Call)
 	case lookup.End != nil && lookup.Start != nil:
+		c.out.write("[")
+		printExpression(c, lookup.Start)
+		c.out.write(":")
+		printExpression(c, lookup.End)
+		c.out.write("]")
 	}
 }
 
-func printSelector(c context, sel *ast.Selector) {
+func printSelector(c formatContext, sel *ast.Selector) {
 	if sel.Not {
 		c.out.write("!")
 	}
@@ -171,7 +222,7 @@ func printSelector(c context, sel *ast.Selector) {
 	}
 }
 
-func printString(c context, value ast.String) {
+func printString(c formatContext, value ast.String) {
 	if value.Multiline {
 		c.out.write(`"""`)
 	} else {
@@ -196,18 +247,21 @@ func printString(c context, value ast.String) {
 	}
 }
 
-func printArray(c context, array ast.Array) {
-	newIndent := c.indent + "\t"
+func printArray(c formatContext, array ast.Array) {
+	newC := c
+	newC.indent += "\t"
 
 	c.out.write("[")
 	if len(array.Values) == 1 {
 		printValue(c, *array.Values[0])
 	} else {
-		for _, val := range array.Values {
+		for i, val := range array.Values {
 			c.out.write("\n")
-			c.out.write(newIndent)
-			printValue(c, *val)
-			c.out.write(",")
+			c.out.write(newC.indent)
+			printValue(newC, *val)
+			if i < len(array.Values)-1 {
+				c.out.write(",")
+			}
 		}
 		if len(array.Values) > 0 {
 			c.out.write("\n")
@@ -215,11 +269,15 @@ func printArray(c context, array ast.Array) {
 		}
 	}
 	c.out.write("]")
-
-	array.
 }
 
-func printValue(c context, value ast.Value) {
+func printListComprehension(c formatContext, list ast.For) {
+	c.out.write("[ ")
+	printFor(c, list)
+	c.out.write("]")
+}
+
+func printValue(c formatContext, value ast.Value) {
 	switch {
 	case value.Null:
 		c.out.write("null")
@@ -232,8 +290,44 @@ func printValue(c context, value ast.Value) {
 	case value.Expression != nil:
 		printExpression(c, value.Expression)
 	case value.Bool != nil:
-		printBool(c, *value.Bool)
+		if *value.Bool {
+			c.out.write("true")
+		} else {
+			c.out.write("false")
+		}
 	case value.Number != nil:
-		printNumber(c, *value.Number)
+		c.out.write((string)(*value.Number))
+	case value.ListComprehension != nil:
+		printListComprehension(c, *value.ListComprehension)
+	}
+}
+
+func printObject(c formatContext, value ast.Object) {
+	if len(value.Fields) == 0 {
+		c.out.write("{}")
+		return
+	}
+
+	if !c.top && len(value.Fields) == 1 && value.Position.Line == value.Fields[0].Position.Line {
+		c.out.write("{ ")
+		printField(c, *value.Fields[0])
+		c.out.write(" }")
+		return
+	}
+
+	newC := c
+	newC.top = false
+	if !c.top {
+		c.out.write("{\n")
+		newC.indent += "\t"
+	}
+	for _, field := range value.Fields {
+		c.out.write(newC.indent)
+		printField(newC, *field)
+		c.out.write("\n")
+	}
+	if !c.top {
+		c.out.write(c.indent)
+		c.out.write("}")
 	}
 }

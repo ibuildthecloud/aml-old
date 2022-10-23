@@ -1,0 +1,5 @@
+num: a.b.c[asdf.asdf:5]
+"x y": 6[7]
+---
+num: a.b.c[asdf.asdf:5]
+"x y": 6[7]
