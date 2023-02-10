@@ -133,8 +133,12 @@ func EvaluateList(ctx context.Context, scope *Scope, expr *ast.For) (_ *Array, e
 
 		locals := &Locals{}
 		locals.Add("last", last)
-		locals.Add(expr.IndexVar, item.Key)
-		locals.Add(expr.ValueVar, item.Value)
+		if expr.IndexVar != nil {
+			locals.Add(expr.IndexVar.Value, item.Key)
+		}
+		if expr.ValueVar != nil {
+			locals.Add(expr.ValueVar.Value, item.Value)
+		}
 
 		if expr.Condition != nil {
 			v, err := EvaluateExpression(ctx, scope.Push(locals), expr.Condition)

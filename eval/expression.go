@@ -18,12 +18,12 @@ func processOperators(ctx context.Context, scope *Scope, acc Acc, chain []opChai
 	for _, op := range chain {
 		found := false
 		for _, operator := range operators {
-			if op.Op.Op == operator {
+			if op.Op.Token.Value == operator {
 				result[len(result)-1].Value, err = acc(
 					ctx,
 					scope,
 					op.Op.Position,
-					op.Op.Op,
+					op.Op.Token.Value,
 					result[len(result)-1].Value,
 					op.Value)
 				found = true
@@ -65,7 +65,7 @@ func processOps(ctx context.Context, scope *Scope, chain []opChain) (_ Value, er
 		return nil, err
 	}
 	if len(chain) > 1 {
-		return nil, fmt.Errorf("invalid op chain non recognized op: %s", chain[1].Op.Op)
+		return nil, fmt.Errorf("invalid op chain non recognized op: %s", chain[1].Op.Token.Value)
 	}
 	return chain[0].Value, nil
 }

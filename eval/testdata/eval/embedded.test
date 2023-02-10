@@ -6,7 +6,7 @@ outer: {
     i: o & {b: 2}
 }
 outer: c: {
-    2
+    2,
     if true {
     3
     }

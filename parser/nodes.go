@@ -18,16 +18,10 @@ func toInput(input interface{}, c *current) (interface{}, error) {
 			Position: toPos(c),
 			Fields:   nil,
 		},
-		Comments: map[int]ast.CommentGroups{},
 	}
 
 	for _, field := range toSlice(input) {
 		ret.Object.Fields = append(ret.Object.Fields, field.(*ast.Field))
-	}
-
-	comments, _ := c.state["comments"].([]ast.CommentGroups)
-	for _, comment := range comments {
-		ret.Comments[comment.End] = comment
 	}
 
 	return ret, nil
@@ -36,7 +30,7 @@ func toInput(input interface{}, c *current) (interface{}, error) {
 func newOp(op interface{}, c *current) (interface{}, error) {
 	return &ast.Op{
 		Position: toPos(c),
-		Op:       op.(string),
+		Token:    op.(ast.Token),
 	}, nil
 }
 
@@ -82,10 +76,7 @@ func toCall(positional, named interface{}, c *current) (interface{}, error) {
 func toDotLookup(literal interface{}, c *current) (interface{}, error) {
 	return &ast.Lookup{
 		Position: toPos(c),
-		Literal: &ast.Literal{
-			Position: toPos(c),
-			Value:    literal.(string),
-		},
+		Literal:  literal.(*ast.Literal),
 	}, nil
 }
 
@@ -122,11 +113,8 @@ func toSelector(not, value, lookup interface{}, c *current) (interface{}, error)
 	}
 
 	switch v := value.(type) {
-	case string:
-		sel.Literal = &ast.Literal{
-			Position: toPos(c),
-			Value:    v,
-		}
+	case *ast.Literal:
+		sel.Literal = v
 	case *ast.Parens:
 		sel.Parens = v
 	case *ast.Value:
@@ -140,26 +128,27 @@ func toSelector(not, value, lookup interface{}, c *current) (interface{}, error)
 	return sel, nil
 }
 
-func toForField(id1, id2, expr, obj interface{}, c *current) (interface{}, error) {
-	v, err := toListComprehension(id1, id2, expr, obj, nil, c)
+func toForField(id1, id2, expr, obj, comma interface{}, c *current) (interface{}, error) {
+	v, err := toListComprehension(ast.Token{}, id1, id2, expr, obj, nil, ast.Token{}, c)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.Field{
 		Position: toPos(c),
 		For:      v.(*ast.Value).ListComprehension,
+		Comma:    toComma(comma),
 	}, nil
 }
 
-func toListComprehension(id1, id2, expr, obj, ifCond any, c *current) (interface{}, error) {
+func toListComprehension(lbracket, id1, id2, expr, obj, ifCond, rbracket any, c *current) (interface{}, error) {
 	var (
-		valueVar = id1.(string)
-		indexVar = ""
+		valueVar = id1.(*ast.Literal)
+		indexVar *ast.Literal
 		cond     *ast.Expression
 	)
 	if id2 != nil {
 		indexVar = valueVar
-		valueVar = toSlice(id2)[1].(string)
+		valueVar = toSlice(id2)[1].(*ast.Literal)
 	}
 	if ifCond != nil {
 		cond = toSlice(ifCond)[1].(*ast.Value).Expression
@@ -173,6 +162,8 @@ func toListComprehension(id1, id2, expr, obj, ifCond any, c *current) (interface
 			ValueVar:  valueVar,
 			Array:     expr.(*ast.Value).Expression,
 			Object:    obj.(*ast.Value).Object,
+			LBracket:  lbracket.(ast.Token),
+			RBracket:  rbracket.(ast.Token),
 		},
 	}, nil
 }
@@ -203,20 +194,34 @@ func toIfField(condition, obj, ifElse interface{}, c *current) (interface{}, err
 	return f, nil
 }
 
-func toLetField(key, value interface{}, c *current) (interface{}, error) {
+func toComma(comma interface{}) *ast.Token {
+	v, ok := comma.(ast.Token)
+	if ok {
+		return &v
+	}
+	return nil
+}
+
+func toLetField(let, key, sep, value, comma interface{}, c *current) (interface{}, error) {
 	k, err := toKey(key, c)
 	if err != nil {
 		return nil, err
 	}
-	return &ast.Field{
-		Position: toPos(c),
-		Let:      true,
-		Key:      *k,
-		Value:    value.(*ast.Value),
-	}, nil
+	field := &ast.Field{
+		Position:  toPos(c),
+		Key:       *k,
+		Value:     value.(*ast.Value),
+		Separator: sep.(ast.Token),
+		Comma:     toComma(comma),
+	}
+
+	letValue := let.(ast.Token)
+	field.Let = &letValue
+
+	return field, nil
 }
 
-func toFieldField(key, value interface{}, c *current) (interface{}, error) {
+func toFieldField(key, value, comma interface{}, c *current) (interface{}, error) {
 	field := value.(*ast.Field)
 	return &ast.Field{
 		Position: toPos(c),
@@ -228,45 +233,52 @@ func toFieldField(key, value interface{}, c *current) (interface{}, error) {
 				Fields:   []*ast.Field{field},
 			},
 		},
+		Comma: toComma(comma),
 	}, nil
 }
 
-func toKeyMatch(v interface{}, c *current) (*ast.Key, error) {
+func toKeyMatch(v, rbrace interface{}, c *current) (*ast.Key, error) {
 	key, err := toKey(v, c)
 	if err != nil {
 		return nil, err
 	}
-	key.Match = true
+	tok := rbrace.(ast.Token)
+	key.Match = &tok
 	return key, nil
 }
 
 func toKey(key interface{}, c *current) (*ast.Key, error) {
-	var keyName *ast.String
 	switch v := key.(type) {
-	case string:
-		keyName = toASTString(toPos(c), v, c)
+	case *ast.Literal:
+		return &ast.Key{
+			Position:   v.Position,
+			Identifier: v,
+		}, nil
 	case *ast.Value:
-		keyName = v.String
+		return &ast.Key{
+			Position: v.Position,
+			String:   v.String,
+		}, nil
 	case *ast.Key:
 		return v, nil
+	default:
+		panic("unknown key")
 	}
-	return &ast.Key{
-		Position: toPos(c),
-		Name:     keyName,
-	}, nil
 }
 
-func toField(key, value interface{}, c *current) (interface{}, error) {
+func toField(key, value, comma interface{}, c *current) (interface{}, error) {
 	return &ast.Field{
 		Position: toPos(c),
 		Key:      *key.(*ast.Key),
 		Value:    value.(*ast.Value),
+		Comma:    toComma(comma),
 	}, nil
 }
 
-func toString(chars interface{}, c *current) (interface{}, error) {
+func toString(chars, token interface{}, c *current) (interface{}, error) {
 	ret := &ast.String{
-		Position: toPos(c),
+		Position:   toPos(c),
+		Whitespace: token.(ast.Token).Whitespace,
 	}
 	buf := &strings.Builder{}
 	for _, v := range toSlice(chars) {
@@ -313,26 +325,39 @@ func toChar(c *current) (interface{}, error) {
 	return strconv.Unquote(fmt.Sprintf("'%s'", c.text))
 }
 
-func toObject(fields interface{}, c *current) (interface{}, error) {
+func toNamedArgs(fields interface{}, c *current) (interface{}, error) {
+	return toObject(ast.Token{}, fields, ast.Token{}, c)
+}
+
+func toObject(lbrace, fields, rbrace interface{}, c *current) (interface{}, error) {
 	obj := &ast.Value{
-		Position: toPos(c),
+		Position: lbrace.(ast.Token).Position,
 		Object: &ast.Object{
-			Position: toPos(c),
-			Fields:   nil,
+			Position: lbrace.(ast.Token).Position,
+			LBrace:   lbrace.(ast.Token),
+			RBrace:   rbrace.(ast.Token),
 		},
 	}
 
-	for _, field := range toSlice(fields) {
+	for i, field := range toSlice(fields) {
+		if i == 0 && obj.Position.Offset == 0 {
+			obj.Position = field.(*ast.Field).Position
+			obj.Object.Position = field.(*ast.Field).Position
+		}
 		obj.Object.Fields = append(obj.Object.Fields, field.(*ast.Field))
 	}
 
 	return obj, nil
 }
 
-func toNull(c *current) (interface{}, error) {
+func toNull(v1 interface{}, c *current) (interface{}, error) {
+	null := v1.(ast.Token)
 	return &ast.Value{
-		Position: toPos(c),
-		Null:     true,
+		Position: null.Position,
+		Null: &ast.Null{
+			Position:   null.Position,
+			Whitespace: null.Whitespace,
+		},
 	}, nil
 }
 
@@ -368,18 +393,15 @@ func toArray(head, tail interface{}, c *current) (interface{}, error) {
 	return ret, nil
 }
 
-func comments(c *current) []string {
-	v, _ := c.state["comments"].([]string)
-	return v
-}
-
-func toEmbeddedField(v interface{}, c *current) (interface{}, error) {
-	return &ast.Field{
+func toEmbeddedField(v, comma interface{}, c *current) (interface{}, error) {
+	field := &ast.Field{
 		Position: toPos(c),
 		Key:      ast.Key{},
 		Embedded: true,
 		Value:    v.(*ast.Value),
-	}, nil
+		Comma:    toComma(comma),
+	}
+	return field, nil
 }
 
 func toNumber(c *current) (interface{}, error) {
@@ -390,72 +412,51 @@ func toNumber(c *current) (interface{}, error) {
 	}, nil
 }
 
-func toBool(v interface{}, c *current) (interface{}, error) {
-	b := v.(string) == "true"
+func toBool(v interface{}, _ *current) (interface{}, error) {
+	tok := v.(ast.Token)
 	return &ast.Value{
-		Position: toPos(c),
-		Bool:     &b,
+		Position: tok.Position,
+		Bool: &ast.Bool{
+			Position:   tok.Position,
+			Value:      tok.Value == "true",
+			Whitespace: tok.Whitespace,
+		},
 	}, nil
-}
-
-type spacePosition struct {
-	Position ast.Position
-	Text     string
 }
 
 func space(c *current) (interface{}, error) {
-	return &spacePosition{
+	return &ast.Space{
 		Position: toPos(c),
-		Text:     string(c.text),
+		String:   string(c.text),
 	}, nil
 }
 
-func whitespace(w interface{}, c *current) error {
-	var (
-		comments     []string
-		currentBlock []string
-		position     ast.Position
-		text         string = string(c.text)
-		end          int
-	)
-	for i, c := range toSlice(w) {
-		sp, ok := c.(*spacePosition)
-		if !ok {
-			continue
-		}
-		if i == 0 {
-			position = sp.Position
-		}
-		end = sp.Position.Offset + len(sp.Text)
-		trimmedText := strings.TrimSpace(sp.Text)
-		if strings.HasPrefix(trimmedText, "//") {
-			currentBlock = append(currentBlock, strings.TrimPrefix(trimmedText, "//"))
-		} else if sp.Text == "\n" && len(currentBlock) > 0 {
-			comments = append(comments, strings.Join(currentBlock, "\n"))
-			currentBlock = nil
-		}
-	}
-
-	if len(currentBlock) > 0 {
-		comments = append(comments, strings.Join(currentBlock, "\n"))
-	}
-	if len(comments) == 0 && text == "" {
-		return nil
-	}
-	v, _ := c.state["comments"].([]ast.CommentGroups)
-	newV := make([]ast.CommentGroups, len(v), len(v)+1)
-	copy(newV, v)
-	c.state["comments"] = append(newV, ast.CommentGroups{
-		Position: position,
-		End:      end,
-		Text:     text,
-		Lines:    comments,
-	})
-	return nil
+func comment(c *current) (interface{}, error) {
+	return ast.Comment{
+		Position: toPos(c),
+		String:   string(c.text),
+	}, nil
 }
 
-func currentString(c *current) (interface{}, error) {
-	return strings.TrimSpace(strings.Split(string(c.text), "//")[0]), nil
+func toWhitespace(elems interface{}, c *current) (interface{}, error) {
+	result := ast.Whitespace{
+		Position: toPos(c),
+	}
+	for _, elem := range toSlice(elems) {
+		switch v := elem.(type) {
+		case ast.Space:
+			space := v
+			result.Elements = append(result.Elements, ast.WhitespaceElement{
+				Space: &space,
+			})
+		case ast.Comment:
+			comment := v
+			result.Elements = append(result.Elements, ast.WhitespaceElement{
+				Comment: &comment,
+			})
+		}
+	}
+	return result, nil
 }
 
 func noop(v interface{}) (interface{}, error) {
@@ -479,13 +480,44 @@ func toPos(c *current) ast.Position {
 	}
 }
 
-func toASTString(pos ast.Position, s string, c *current) *ast.String {
-	return &ast.String{
-		Position: pos,
-		Parts: []ast.StringPart{
-			{
-				String: &s,
-			},
-		},
+func charsToString(chars interface{}) string {
+	result := &strings.Builder{}
+	switch v := chars.(type) {
+	case []interface{}:
+		for _, chars := range toSlice(v) {
+			for _, c := range chars.([]uint8) {
+				result.WriteByte(c)
+			}
+		}
+	case []uint8:
+		for _, c := range v {
+			result.WriteByte(c)
+		}
 	}
+	return result.String()
+}
+
+func identifier(start, end, whitespace interface{}, c *current) (*ast.Literal, error) {
+	return &ast.Literal{
+		Position:   toPos(c),
+		Value:      charsToString(start) + charsToString(end),
+		Whitespace: whitespace.(ast.Whitespace),
+	}, nil
+}
+
+func token(s, whitespace interface{}, c *current) (ast.Token, error) {
+	switch v := whitespace.(type) {
+	case ast.Whitespace:
+		return ast.Token{
+			Position:   toPos(c),
+			Value:      string(s.([]byte)),
+			Whitespace: v,
+		}, nil
+	}
+	wh, err := toWhitespace(whitespace, c)
+	return ast.Token{
+		Position:   toPos(c),
+		Value:      string(s.([]byte)),
+		Whitespace: wh.(ast.Whitespace),
+	}, err
 }

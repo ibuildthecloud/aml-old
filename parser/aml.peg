@@ -2,13 +2,13 @@
 
 Input <- __ v1:(Object / Field*) EOF { return toInput(v1, c) }
 
-Object <- LBRACE v1:Field* RBRACE { return toObject(v1, c) }
+Object <- v1:LBRACE v2:Field* v3:RBRACE { return toObject(v1, v2, v3, c) }
 
 Field <- IfField / ForField / LetField / FieldField / KeyField / EmbeddedField
 
-EmbeddedField <- v1:Expression COMMA? { return toEmbeddedField(v1, c) }
+EmbeddedField <- v1:Expression v2:COMMA? { return toEmbeddedField(v1, v2, c) }
 
-LetField <- LET v1:Identifier (ASSIGN/COLON) v2:Expression COMMA? { return toLetField(v1, v2, c) }
+LetField <- v1:LET v2:Identifier v3:(ASSIGN/COLON) v4:Expression v5:COMMA? { return toLetField(v1, v2, v3, v4, v5, c) }
 
 IfField <- v1:IfExpr COMMA? { return noop(v1) }
 
@@ -16,26 +16,26 @@ IfExpr <- IF v1:Expression v2:Object v3:ElseExpr? { return toIfField(v1, v2, v3,
 
 ElseExpr <- ELSE v1:(Object / IfExpr) { return toElse(v1, c) }
 
-KeyField <- v1:Key COLON v2:Expression COMMA? { return toField(v1, v2, c) }
+KeyField <- v1:Key COLON v2:Expression v3:COMMA? { return toField(v1, v2, v3, c) }
 
-FieldField <- v1:Key COLON v2:(ForField / FieldField / KeyField) COMMA? { return toFieldField(v1, v2, c) }
+FieldField <- v1:Key COLON v2:(ForField / FieldField / KeyField) v3:COMMA? { return toFieldField(v1, v2, v3, c) }
 
-ForField <- FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object COMMA? { return toForField(v1, v2, v3, v4, c) }
+ForField <- FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object v5:COMMA? { return toForField(v1, v2, v3, v4, v5, c) }
 
 Key <- v1:(String / Identifier / KeyMatch) { return toKey(v1, c) }
 
-KeyMatch <- LBRACKET REGEQ v1:String RBRACKET { return toKeyMatch(v1, c) }
+KeyMatch <- LBRACKET REGEQ v1:String v2:RBRACKET { return toKeyMatch(v1, v2, c) }
 
 Value <- Null / Boolean / Number / Array / Object / String
 
-Null <- NULL { return toNull(c) }
+Null <- v1:NULL { return toNull(v1, c) }
 
 Boolean <- v1:(TRUE / FALSE) { return toBool(v1, c) }
 
 String <- TripleString / SingleString
 
-SingleString <- StringStart v1:(!STRINGEND !EOL (Interpolation / Character))* STRINGEND { return toString(v1, c) }
-TripleString <- TripleStringStart v1:(!TRIPLESTRINGEND (Interpolation / Character))* TRIPLESTRINGEND { return toString(v1, c) }
+SingleString <- StringStart v1:(!STRINGEND !EOL (Interpolation / Character))* v2:STRINGEND { return toString(v1, v2, c) }
+TripleString <- TripleStringStart v1:(!TRIPLESTRINGEND (Interpolation / Character))* v2:TRIPLESTRINGEND { return toString(v1, v2, c) }
 
 Interpolation <- "\\(" v1:Expression ')' { return noop(v1) }
 
@@ -43,7 +43,7 @@ Expression <- v1:Selector v2:(Op Selector)* { return toExpression(v1, v2, c) }
 
 Selector <- v1:NOT? v2:(Parens / ListComprehension / Value / Identifier) v3:(DotLookup/SliceLookup/IndexLookup/Call)* { return toSelector(v1, v2, v3, c) }
 
-ListComprehension <- LBRACKET FOR v1:Identifier v2:(COMMA Identifier)? IN v3:Expression v4:Object v5:(IF Expression)? RBRACKET { return toListComprehension(v1, v2, v3, v4, v5, c) }
+ListComprehension <- v1:LBRACKET FOR v2:Identifier v3:(COMMA Identifier)? IN v4:Expression v5:Object v6:(IF Expression)? v7:RBRACKET { return toListComprehension(v1, v2, v3, v4, v5, v6, v7, c) }
 
 Parens <- LPAREN v1:Expression RPAREN { return toParens(v1, c) }
 
@@ -53,13 +53,13 @@ IndexLookup <- LBRACKET v1:Expression RBRACKET { return toIndexLookup(v1, c) }
 Call <- LPAREN v1:PositionalArgs v2:NamedArgs? RPAREN { return toCall(v1, v2, c) }
 
 PositionalArgs <- v1:(!NamedArgs Expression)? v2:(COMMA !NamedArgs Expression)* { return toArray(v1, v2, c) }
-NamedArgs <- v1:KeyField+ { return toObject(v1, c) }
+NamedArgs <- v1:KeyField+ { return toNamedArgs(v1, c) }
 
 Op <- v1:(MINUS / PLUS / MUL / DIVIDE / AND / OR / MERGE / EQUALS / NOTEQUALS / REGEQ / REGNEQ / LTE / GTE / LT / GT) { return newOp(v1, c) }
 
 Array <- LBRACKET v1:Expression? v2:(COMMA Expression)* COMMA? RBRACKET { return toArray(v1, v2, c) }
 
-Identifier <- IdentStart IdentCont* __ { return currentString(c) }
+Identifier <- v1:IdentStart v2:IdentCont* v3:__ { return identifier(v1, v2, v3, c) }
 IdentStart <- [a-zA-Z_]
 IdentCont <- IdentStart / Digit
 
@@ -82,49 +82,49 @@ Suffix <- BiSuffix / DecSuffix
 BiSuffix <- [KkMmGgTtPpEeZzYy] 'i'
 DecSuffix <- [KkMmGgTtPpEeZzYy]
 
-__ <- v1:_* #{ return whitespace(v1, c) }
-_ <- v1:(' ' / '\t' / EOL / Comment) { return space(c) }
-Comment <- "//" (!EOL .)* EOL { return space(c) }
+__ <- v1:(Comment / _)* { return toWhitespace(v1, c) }
+_ <- v1:(' ' / '\t' / EOL) { return space(c) }
+Comment <- "//" v1:(!EOL .)* EOL { return comment(c) }
 EOL <- "\r\n" / '\n' / '\r'
 StringStart <- '"'
 TripleStringStart <- "\"\"\""
 
 // Tokens, these all consume trailing white space
-NULL <- "null" __ { return currentString(c) }
-TRUE <- "true" __ { return currentString(c) }
-FALSE <- "false" __ { return currentString(c) }
-LET <- "let" __ { return currentString(c) }
-ASSIGN <- '=' __ { return currentString(c) }
-NOT <- '!' __ { return currentString(c) }
-IF <- "if" __ { return currentString(c) }
-ELSE <- "else" __ { return currentString(c) }
-IN <- "in" __ { return currentString(c) }
-FOR <- "for" __ { return currentString(c) }
-COMMA <- ',' __ { return currentString(c) }
-LPAREN <- '(' __ { return currentString(c) }
-RPAREN <- ')' __ { return currentString(c) }
-LBRACE <- '{' __ { return currentString(c) }
-RBRACE <- '}' __ { return currentString(c) }
-LBRACKET <- '[' __ { return currentString(c) }
-RBRACKET <- ']' __ { return currentString(c) }
-MINUS <- '-' __ { return currentString(c) }
-MUL <- '*' __ { return currentString(c) }
-PLUS <- '+' __ { return currentString(c) }
-DIVIDE <- '/' __ { return currentString(c) }
-LT <- '<' __ { return currentString(c) }
-LTE <- "<=" __ { return currentString(c) }
-GT <- '>' __ { return currentString(c) }
-GTE <- ">=" __ { return currentString(c) }
-MERGE <- '&' __ { return currentString(c) }
-EQUALS <- "==" __ { return currentString(c) }
-NOTEQUALS <- "!=" __ { return currentString(c) }
-AND <- "&&" __ { return currentString(c) }
-OR <- "||" __ { return currentString(c) }
-DOT <- '.' __ { return currentString(c) }
-COLON <- ':' __ { return currentString(c) }
-REGEQ <- "=~" __ { return currentString(c) }
-REGNEQ <- "!~" __ { return currentString(c) }
-STRINGEND <- '"' __ { return currentString(c) }
-TRIPLESTRINGEND <- "\"\"\"" __ { return currentString(c) }
+NULL <- v1:"null" v2:__ { return token(v1, v2, c) }
+TRUE <- v1:"true" v2:__ { return token(v1, v2, c) }
+FALSE <- v1:"false" v2:__ { return token(v1, v2, c) }
+LET <- v1:"let" v2:__ { return token(v1, v2, c) }
+ASSIGN <- v1:"=" v2:__ { return token(v1, v2, c) }
+NOT <- v1:"!" v2:_* { return token(v1, v2, c) }
+IF <- v1:"if" v2:_* { return token(v1, v2, c) }
+ELSE <- v1:"else" v2:_* { return token(v1, v2, c) }
+IN <- v1:"in" v2:_* { return token(v1, v2, c) }
+FOR <- v1:"for" v2:_* { return token(v1, v2, c) }
+COMMA <- v1:"," v2:_* { return token(v1, v2, c) }
+LPAREN <- v1:"(" v2:__ { return token(v1, v2, c) }
+RPAREN <- v1:")" v2:__ { return token(v1, v2, c) }
+LBRACE <- v1:"{" v2:__ { return token(v1, v2, c) }
+RBRACE <- v1:"}" v2:__ { return token(v1, v2, c) }
+LBRACKET <- v1:"[" v2:_* { return token(v1, v2, c) }
+RBRACKET <- v1:"]" v2:__ { return token(v1, v2, c) }
+MINUS <- v1:"-" v2:__ { return token(v1, v2, c) }
+MUL <- v1:"*" v2:__ { return token(v1, v2, c) }
+PLUS <- v1:"+" v2:__ { return token(v1, v2, c) }
+DIVIDE <- v1:"/" v2:__ { return token(v1, v2, c) }
+LT <- v1:"<" v2:__ { return token(v1, v2, c) }
+LTE <- v1:"<=" v2:__ { return token(v1, v2, c) }
+GT <- v1:">" v2:__ { return token(v1, v2, c) }
+GTE <- v1:">=" v2:__ { return token(v1, v2, c) }
+MERGE <- v1:"&" v2:__ { return token(v1, v2, c) }
+EQUALS <- v1:"==" v2:__ { return token(v1, v2, c) }
+NOTEQUALS <- v1:"!=" v2:__ { return token(v1, v2, c) }
+AND <- v1:"&&" v2:__ { return token(v1, v2, c) }
+OR <- v1:"||" v2:__ { return token(v1, v2, c) }
+DOT <- v1:"." v2:__ { return token(v1, v2, c) }
+COLON <- v1:":" v2:__ { return token(v1, v2, c) }
+REGEQ <- v1:"=~" v2:_* { return token(v1, v2, c) }
+REGNEQ <- v1:"!~" v2:__ { return token(v1, v2, c) }
+STRINGEND <- v1:'"' v2:__ { return token(v1, v2, c) }
+TRIPLESTRINGEND <- v1:"\"\"\"" v2:__ { return token(v1, v2, c) }
 
 EOF <- !.

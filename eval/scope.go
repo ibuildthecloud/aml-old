@@ -26,11 +26,11 @@ func NewScope(val Value) *Scope {
 	return &Scope{Value: val}
 }
 
-func (s *Scope) Disallow(keys ...string) *Scope {
+func (s *Scope) Disallow(keys ...*ast.Literal) *Scope {
 	cycleVars := map[string]bool{}
 	for _, key := range keys {
-		if key != "" {
-			cycleVars[key] = true
+		if key != nil {
+			cycleVars[key.Value] = true
 		}
 	}
 	return &Scope{

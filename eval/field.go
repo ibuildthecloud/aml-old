@@ -84,7 +84,7 @@ func (f *FieldReference) resolveKey(ctx context.Context, key string) (string, bo
 	}
 	defer f.unlock()
 
-	s, err := EvaluateString(ctx, f.Scope, f.Field.Key.Name)
+	s, err := keyToString(ctx, f.Scope, f.Field.Key)
 	if err != nil {
 		return "", false, err
 	}
@@ -95,6 +95,16 @@ func (f *FieldReference) resolveKey(ctx context.Context, key string) (string, bo
 	f.noMatch = nil
 
 	return s, true, nil
+}
+
+func keyToString(ctx context.Context, scope *Scope, key ast.Key) (string, error) {
+	if key.Identifier != nil {
+		return key.Identifier.Value, nil
+	}
+	if key.String != nil {
+		return EvaluateString(ctx, scope, key.String)
+	}
+	return "", nil
 }
 
 func (f *FieldReference) setNoMatch(key string) {
@@ -186,12 +196,12 @@ func (f *FieldReference) processKeyField(ctx context.Context, key string) (Value
 }
 
 func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error) {
-	if f.Field.Key.Name == nil {
+	if isEmptyKey(f.Field.Key) {
 		return false, nil
 	}
 
-	if !f.Field.Key.Match {
-		if ret := QuickMatch(f.Field.Key.Name, key); ret == True {
+	if f.Field.Key.Match == nil {
+		if ret := QuickMatch(f.Field.Key, key); ret == True {
 			return true, nil
 		} else if ret == False {
 			return false, nil
@@ -203,7 +213,7 @@ func (f *FieldReference) matchKey(ctx context.Context, key string) (bool, error)
 		return ok, err
 	}
 
-	if f.Field.Key.Match {
+	if f.Field.Key.Match != nil {
 		regexp, err := regexp.Compile(s)
 		if err != nil {
 			return false, err
@@ -389,7 +399,7 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 		return []string{f.Field.StaticKey}, nil
 	}
 
-	if f.keys != nil || f.Field.Key.Match {
+	if f.keys != nil || f.Field.Key.Match != nil {
 		return f.keys, nil
 	}
 
@@ -408,7 +418,7 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 		return []string{EmbeddedKey}, nil
 	}
 
-	if f.Field.Key.Name == nil {
+	if isEmptyKey(f.Field.Key) {
 		b, ok, err := f.getBody(ctx, "")
 		if err != nil {
 			return nil, err
@@ -428,4 +438,8 @@ func (f *FieldReference) Keys(ctx context.Context) ([]string, error) {
 
 	s, _, err := f.resolveKey(ctx, "")
 	return []string{s}, err
+}
+
+func isEmptyKey(key ast.Key) bool {
+	return key.String == nil && key.Identifier == nil
 }

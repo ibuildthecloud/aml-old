@@ -7,19 +7,23 @@ import (
 type Object struct {
 	Position Position
 	Fields   []*Field
+	LBrace   Token
+	RBrace   Token
 }
 
 type Key struct {
-	Position Position
-	Name     *String
-	Match    bool
+	Position   Position
+	Identifier *Literal
+	String     *String
+	// If match the token for the right brace
+	Match *Token
 }
 
 type Field struct {
 	Position Position
 	Key      Key
 
-	Let      bool
+	Let      *Token
 	Embedded bool
 	Value    *Value
 	If       *If
@@ -27,11 +31,35 @@ type Field struct {
 
 	StaticKey   string
 	StaticValue interface{}
+
+	Separator Token
+	Comma     *Token
+}
+
+type Whitespace struct {
+	Position Position
+	Elements []WhitespaceElement
+}
+
+type WhitespaceElement struct {
+	Comment *Comment
+	Space   *Space
+}
+
+type Comment struct {
+	Position Position
+	String   string
+}
+
+type Space struct {
+	Position Position
+	String   string
 }
 
 type Token struct {
-	Position Position
-	Token    string
+	Position   Position
+	Value      string
+	Whitespace Whitespace
 }
 
 type If struct {
@@ -42,11 +70,13 @@ type If struct {
 
 type For struct {
 	Position  Position
-	IndexVar  string
-	ValueVar  string
+	IndexVar  *Literal
+	ValueVar  *Literal
 	Condition *Expression
 	Array     *Expression
 	Object    *Object
+	LBracket  Token
+	RBracket  Token
 }
 
 type Position struct {
@@ -68,9 +98,10 @@ func (p Position) IsSet() bool {
 }
 
 type String struct {
-	Position  Position
-	Parts     []StringPart
-	Multiline bool
+	Position   Position
+	Parts      []StringPart
+	Multiline  bool
+	Whitespace Whitespace
 }
 
 type StringPart struct {
@@ -80,29 +111,32 @@ type StringPart struct {
 
 type Number string
 
-type CommentGroups struct {
-	Position Position
-	End      int
-	Lines    []string
-	Text     string
+type Bool struct {
+	Position   Position
+	Value      bool
+	Whitespace Whitespace
+}
+
+type Null struct {
+	Position   Position
+	Whitespace Whitespace
 }
 
 type Value struct {
-	Comments          map[int]CommentGroups
 	Position          Position
 	Array             *Array
 	Object            *Object
 	String            *String
 	Number            *Number
-	Bool              *bool
-	Null              bool
+	Bool              *Bool
+	Null              *Null
 	Expression        *Expression
 	ListComprehension *For
 }
 
 type Op struct {
 	Position Position
-	Op       string
+	Token    Token
 }
 
 type Operator struct {
@@ -112,8 +146,9 @@ type Operator struct {
 }
 
 type Literal struct {
-	Position Position
-	Value    string
+	Position   Position
+	Value      string
+	Whitespace Whitespace
 }
 
 type Expression struct {

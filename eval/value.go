@@ -211,11 +211,13 @@ func Eval(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
 func ToValue(ctx context.Context, scope *Scope, v *ast.Value) (Value, error) {
 	ret := &Scalar{
 		Position: v.Position,
-		Null:     v.Null,
-		Bool:     v.Bool,
 		Number:   v.Number,
 	}
 	switch {
+	case v.Null != nil:
+		ret.Null = true
+	case v.Bool != nil:
+		ret.Bool = &v.Bool.Value
 	case v.String != nil:
 		s, err := EvaluateString(ctx, scope, v.String)
 		if err != nil {

@@ -50,7 +50,7 @@ func (o *ObjectReference) Keys(ctx context.Context) (result []string, _ error) {
 
 	keyNames := map[string]bool{}
 	for _, f := range o.fields {
-		if f.Field.Let {
+		if f.Field.Let != nil {
 			continue
 		}
 		keys, err := f.Keys(ctx)

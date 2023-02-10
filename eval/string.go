@@ -82,7 +82,19 @@ func EvaluateString(ctx context.Context, scope *Scope, s *ast.String) (_ string,
 	return buf.String(), nil
 }
 
-func QuickMatch(s *ast.String, val string) ItCouldBe {
+func QuickMatch(key ast.Key, val string) ItCouldBe {
+	if key.Identifier != nil {
+		if key.Identifier.Value == val {
+			return True
+		}
+		return False
+	}
+
+	s := key.String
+	if s == nil {
+		return False
+	}
+
 	if len(s.Parts) == 0 && val == "" {
 		return True
 	} else if len(s.Parts) == 1 && s.Parts[0].String != nil {
